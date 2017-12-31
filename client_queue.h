@@ -3,17 +3,13 @@
 #include <string.h>
 
 
-//transaction statuses:
-// 0: Created
-// 1: Sent
-// 2: Posted
 typedef struct c_transaction {
     unsigned int id;
     char sender[32];
     char recipient[32];
     int amount;
     char message[96 + 1];
-    int status; 
+    int status; // 0: Created, 1: Sent, 2: Posted
     struct c_transaction* next;
 } c_transaction;
 
@@ -72,4 +68,14 @@ c_transaction* new_trans(int id, char* sender, char* recipient, int amount, char
     temp->next = NULL;
 
     return temp;
+}
+
+//Maps every transaction in list to a function
+void queue_map(transaction_queue* in_queue, void* (*func)(c_transaction* input)) {
+    c_transaction* temp = in_queue->head;
+    while(temp != NULL) {
+        (*func)(temp);
+        temp = temp->next;
+    }
+    return;
 }

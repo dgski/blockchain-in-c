@@ -3,9 +3,45 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <pthread.h>
+#include <unistd.h> 
 #include "client_queue.h"
 
+
 transaction_queue*  main_queue;
+pthread_t network_thread;
+
+
+void* send_new(c_transaction* in_trans) {
+
+    if(in_trans->status == 0) {
+
+        printf("Sending: %s\n", in_trans->message);
+        in_trans->status = 1;
+    }
+
+    return NULL;
+}
+
+
+void* check_network(){
+    
+    while(true) {
+        //1. Check for new transactions added to list
+        //2. Send new transactions to nodes
+        queue_map(main_queue, send_new);
+        //3. Request blockchain status of transactions
+        //4. Recieve new data
+        //5. Update transactions status
+        //6. Wait short amount to prevent spamming
+        sleep(5);
+
+
+
+
+    }
+}
+
 
 void display_help() {
     printf("Help/Command List: 'h'\n");
@@ -77,16 +113,15 @@ void print_trans() {
 
 int main(void) {
 
-    //Print heading and command block
+    //Setup
     printf("Blockchain in C: Client v0.1 by DG\n'h' for help/commandlist\n");
-
-    //Input buffer
     char buffer[120] = {0};
-
-    //Create transaction list
     main_queue = new_queue();
 
-    //Wait for input
+    //Network thread
+    pthread_create(&network_thread, NULL, check_network, NULL);
+
+    //Wait for command
     while(true) {
         printf("b-in-c>");
         fgets(buffer, 120, stdin);
