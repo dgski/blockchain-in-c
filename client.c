@@ -3,9 +3,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include "client_queue.h"
+
+transaction_queue*  main_queue;
 
 void display_help() {
-
     printf("Help/Command List: 'h'\n");
     printf("Transactions List: 't'\n");
     printf("Post New Transaction: 'n sender reciever amount'\n");
@@ -16,7 +18,6 @@ void display_help() {
 void quit_program() {
     printf("Shutting down. Good bye!\n");
     exit(0);
-
 }
 
 bool val_trans_format(char* sender, char* recipient, char* amount) {
@@ -33,8 +34,6 @@ bool val_trans_format(char* sender, char* recipient, char* amount) {
             return false;
         }
     }
-
-    printf("AMOUNT IN INT: %d\n", atoi(amount));
 
     if(isnumber(atoi(amount))) {
         printf("Enter a valid number amount to transfer.\n");
@@ -63,18 +62,16 @@ void post_transaction(char* input) {
     strcat(out_msg, seperator);
     strcat(out_msg, amount);
 
-
+    c_transaction* temp = new_trans(0,sender, recipient, atoi(amount), out_msg);
+    add_to_queue(main_queue, temp);
 
     return;
 
 }
 
 void print_trans() {
-
-    printf("TRANSACTIONS WILL BE HERE\n");
-
+    print_queue(main_queue);
     return;
-
 }
 
 
@@ -87,6 +84,10 @@ int main(void) {
     //Input buffer
     char buffer[120] = {0};
 
+    //Create transaction list
+    main_queue = new_queue();
+
+    //Wait for input
     while(true) {
         printf("b-in-c>");
         fgets(buffer, 120, stdin);
@@ -111,4 +112,5 @@ int main(void) {
 
     }
 
+    return 0;
 }
