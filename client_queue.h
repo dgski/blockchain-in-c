@@ -37,10 +37,10 @@ transaction_queue* add_to_queue(transaction_queue* in_queue, c_transaction* in_t
     }
     else {
         c_transaction* temp = in_queue->head;
-        while(temp != NULL) {
+        while(temp->next != NULL) {
             temp = temp->next;
         }
-        temp = in_trans;
+        temp->next = in_trans;
     }
     in_queue->amount++;
     return in_queue;
@@ -51,8 +51,6 @@ void print_queue(transaction_queue* in_queue) {
     printf("%d Transaction(s):\n\n", in_queue->amount);
     printf("id sender recipient amount message status\n");
     printf("-----------------------------------------\n");
-
-
 
     c_transaction* temp = in_queue->head;
 

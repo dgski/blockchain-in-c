@@ -66,7 +66,6 @@ void post_transaction(char* input) {
     add_to_queue(main_queue, temp);
 
     return;
-
 }
 
 void print_trans() {
