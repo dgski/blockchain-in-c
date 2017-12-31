@@ -14,6 +14,6 @@ typedef struct block
     transaction trans_list[20];
     unsigned int trans_list_length;
     unsigned int proof;
-    char previous_hash[32];
+    unsigned char previous_hash[32];
 } block;
 

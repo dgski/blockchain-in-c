@@ -14,7 +14,7 @@ int main(void) {
     new_transaction(&our_chain,"Gandalf","Frodo",500);
 
     //Test block
-    blink* a_block = new_block(&our_chain,10);
+    blink* a_block = new_block(&our_chain, proof_of_work(our_chain.last_proof_of_work));
     hash_block(&a_block->data);
 
     //Test transactions
@@ -22,14 +22,11 @@ int main(void) {
     new_transaction(&our_chain,"BartSimpson","NinjaTurtle",200);
 
     //Test block
-    a_block = new_block(&our_chain,100);
+    a_block = new_block(&our_chain, proof_of_work(our_chain.last_proof_of_work));
     hash_block(&a_block->data);
 
 
     print_list(our_chain.head);
-
-
-    //proof_of_work(200);
 
     return 0;
 
