@@ -13,32 +13,36 @@ pthread_t network_thread;
 
 
 void* send_new(c_transaction* in_trans) {
-
     if(in_trans->status == 0) {
 
-        printf("Sending: %s\n", in_trans->message);
+        //printf("Sending: %s\n", in_trans->message);
+        //Send function goes here
         in_trans->status = 1;
     }
-
     return NULL;
 }
 
+void* update_status(c_transaction* in_trans) {
+    if(in_trans->status == 0) {
+
+        //printf("Sending: %s\n", in_trans->message);
+        //Send function goes here
+        in_trans->status = 1;
+    }
+    return NULL;
+}
 
 void* check_network(){
     
     while(true) {
-        //1. Check for new transactions added to list
-        //2. Send new transactions to nodes
+        //1. Send new transactions to nodes
         queue_map(main_queue, send_new);
-        //3. Request blockchain status of transactions
-        //4. Recieve new data
-        //5. Update transactions status
-        //6. Wait short amount to prevent spamming
+        //2. Request blockchain status of transactions
+        //3. Recieve new data
+        //4. Update transactions status
+        queue_map(main_queue, update_status);
+        //5. Wait short amount to prevent spamming
         sleep(5);
-
-
-
-
     }
 }
 
@@ -104,13 +108,6 @@ void post_transaction(char* input) {
     return;
 }
 
-void print_trans() {
-    print_queue(main_queue);
-    return;
-}
-
-
-
 int main(void) {
 
     //Setup
@@ -134,7 +131,7 @@ int main(void) {
             quit_program();
 
         else if( !strcmp("t", buffer) )
-            print_trans();
+            queue_print(main_queue);
 
         else if(buffer[0] == 'n')
             post_transaction(buffer);
