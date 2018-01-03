@@ -6,6 +6,8 @@
 #include "block.h"
 #include "hashing.h"
 
+#define BLOCK_STR_SIZE 1024
+
 typedef struct blink 
 {
     block data;
@@ -191,9 +193,9 @@ blink* new_block(blockchain* in_chain, unsigned int in_proof) {
     return new_block;
 }
 
-unsigned char* hash_block(block* in_block) {
+char* string_block(char* output, block* in_block) {
 
-    char block_string[1024];
+    char block_string[BLOCK_STR_SIZE];
     char buffer[120];
 
     //Add index and time
@@ -220,7 +222,17 @@ unsigned char* hash_block(block* in_block) {
         strcat(block_string, buffer);
     }
 
-    //char* hash_value = crypt(block_string,"BC");
+    strcpy(output, block_string);
+
+    return output;
+}
+
+
+unsigned char* hash_block(block* in_block) {
+
+    char block_string[BLOCK_STR_SIZE];
+    string_block(block_string, in_block);
+
     unsigned char* hash_value =  malloc(32);
     hash256(hash_value, block_string);
 

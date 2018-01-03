@@ -18,6 +18,27 @@ strlist* other_nodes;
 blockchain* our_chain;
 pthread_t network_thread;
 
+int announce_block(block* in_block) {
+
+    char block[BLOCK_STR_SIZE];
+    string_block(block, in_block);
+    printf("%s\n", block);
+    /*
+    int sock = nn_socket (AF_SP, NN_PUSH);
+
+    for(int i = 0; i < other_nodes->length; i++) {
+
+
+
+
+    }*/
+
+
+    return 0;
+}
+
+
+
 //Continually searches for proper proof of work
 int mine() {
 
@@ -121,32 +142,6 @@ int main(void) {
 
     //Begin mining
     mine();
-    
-
-
-    /*
-    //Create blockchain
-    our_chain = new_chain();
-
-    //Test transactions
-    new_transaction(our_chain,"David","Paul",100);
-    new_transaction(our_chain,"Richie","Frodo",200);
-    new_transaction(our_chain,"Gandalf","Frodo",500);
-
-    //Test block
-    blink* a_block = new_block(our_chain, proof_of_work(our_chain->last_proof_of_work));
-    hash_block(&a_block->data);
-
-    //Test transactions
-    new_transaction(our_chain,"BillGates","Steven",100);
-    new_transaction(our_chain,"BartSimpson","NinjaTurtle",200);
-
-    //Test block
-    a_block = new_block(our_chain, proof_of_work(our_chain->last_proof_of_work));
-    hash_block(&a_block->data);
-
-
-    print_list(our_chain->head);*/
 
     return 0;
 
