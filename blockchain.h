@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include "block.h"
+#include <ctype.h>
 #include <time.h>
+#include "block.h"
 #include "hashing.h"
 
 typedef struct blink 
@@ -232,7 +233,8 @@ bool valid_proof(unsigned int last_proof, unsigned int proof) {
     sprintf(guess, "%i%i",last_proof, proof);
     unsigned char hash_value[32];
     hash256(hash_value,guess);
-    return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' && hash_value[3] == '0');
+
+    return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' && (hash_value[3] > 64 && hash_value[3] < 127));
     return false;
 }
 
