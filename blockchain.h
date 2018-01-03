@@ -33,7 +33,7 @@ void print_block(blink* in_block)
     printf("\n\n");
 }
 
-blink* create()
+blink* create_block()
 {
     blink* temp = malloc(sizeof(blink));
     temp->data.index = 0;
@@ -47,7 +47,7 @@ blink* create()
 
 blink* prepend(blink* head)
 {
-    blink* temp = create();
+    blink* temp = create_block();
     temp->next = head;
     head = temp;
     return head;
@@ -60,7 +60,7 @@ blink* append(blink* head)
     while(cursor->next != NULL)
         cursor = cursor->next;
 
-    blink* temp = create();
+    blink* temp = create_block();
     cursor->next = temp;
     
     return temp;
@@ -139,9 +139,10 @@ typedef struct blockchain
     
 } blockchain;
 
-void setup_chain(blockchain* in_chain) {
+blockchain* new_chain() {
 
-    in_chain->head = create();
+    blockchain* in_chain = malloc(sizeof(blockchain));
+    in_chain->head = create_block();
     in_chain->head->data.proof = 100;
     in_chain->last_proof_of_work = 100;
     memset(in_chain->trans_list,0, sizeof(in_chain->trans_list));
@@ -149,7 +150,7 @@ void setup_chain(blockchain* in_chain) {
     in_chain->trans_index = 0;
     in_chain->new_index = 1;
 
-    return;
+    return in_chain;
 }
 
 
@@ -231,7 +232,7 @@ bool valid_proof(unsigned int last_proof, unsigned int proof) {
     sprintf(guess, "%i%i",last_proof, proof);
     unsigned char hash_value[32];
     hash256(hash_value,guess);
-    return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' /*&& hash_value[3] == '0'*/);
+    return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' && hash_value[3] == '0');
     return false;
 }
 

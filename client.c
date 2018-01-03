@@ -4,8 +4,12 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <pthread.h>
-#include <unistd.h> 
+#include <unistd.h>
+#include <assert.h>
+
 #include "client_queue.h"
+#include "nanomsg/include/nn.h"
+#include "nanomsg/include/pipeline.h"
 
 
 transaction_queue*  main_queue;
@@ -16,8 +20,13 @@ void* send_new(c_transaction* in_trans) {
     if(in_trans->status == 0) {
 
         //printf("Sending: %s\n", in_trans->message);
-        //Send function goes here
+        int sock = nn_socket (AF_SP, NN_PUSH);
+        assert (sock >= 0);
+        assert (nn_connect (sock, "ipc:///tmp/pipeline.ipc") >= 0);
+        int bytes = nn_send (sock, in_trans->message, strlen(in_trans->message), 0);
+        //printf("Bytes sent: %d\n", bytes);
         in_trans->status = 1;
+        nn_shutdown(sock,0);
     }
     return NULL;
 }
@@ -38,11 +47,12 @@ void* check_network(){
         //1. Send new transactions to nodes
         queue_map(main_queue, send_new);
         //2. Request blockchain status of transactions
+        
         //3. Recieve new data
         //4. Update transactions status
         queue_map(main_queue, update_status);
         //5. Wait short amount to prevent spamming
-        sleep(5);
+        sleep(1);
     }
 }
 
@@ -95,7 +105,7 @@ void post_transaction(char* input) {
         return;
 
     char out_msg[96];
-    char seperator[] = ":";
+    char seperator[] = " ";
     strcpy(out_msg, sender);
     strcat(out_msg, seperator);
     strcat(out_msg, recipient);

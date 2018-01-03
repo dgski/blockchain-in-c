@@ -1,0 +1,13 @@
+prefix=/Users/david/Desktop/nano
+exec_prefix=${prefix}
+includedir=${prefix}/include
+libdir=${prefix}/lib
+
+Name: nanomsg
+Description: High-Performance Scalability Protocols
+URL: http://nanomsg.org/
+Version: 1.0.0
+Requires:
+Libs: -L${libdir} -lnanomsg
+Libs.private: -lpthread
+Cflags: -I${includedir}
