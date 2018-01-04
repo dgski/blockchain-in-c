@@ -20,6 +20,7 @@ strli_node* strli_create_node(char* input_string)
     memset(temp->value, 0, strlen(temp->value));
     strcpy(temp->value, input_string);
     temp->next = NULL;
+    temp->prev = NULL;
     return temp;
 }
 
@@ -34,6 +35,7 @@ strli_node* strli_prepend(strlist* in_list, char* input_value)
     else 
     {
         temp->next = in_list->head;
+        in_list->head->prev = temp;
         in_list->length++;
     }
     
@@ -55,6 +57,7 @@ strli_node* strli_append(strlist* in_list, char* input_value)
         while(cursor->next != NULL)
             cursor = cursor->next;
         cursor->next = temp;
+        temp->prev = cursor;
     }
     
     in_list->length++;
@@ -69,6 +72,7 @@ strli_node* strli_remove_front(strlist* in_list)
 
     strli_node* cursor = in_list->head;
     in_list->head = in_list->head->next;
+    in_list->head->prev = NULL;
     in_list->length--;
     free(cursor->value);
     free(cursor);
@@ -97,6 +101,29 @@ strli_node* strli_remove_end(strlist* in_list)
     free(cursor);
     
     return in_list->head;
+}
+
+void strli_delete_node(strlist* in_list, strli_node* in_node) {
+
+    if(in_node == NULL)
+        return;
+
+    if(in_node->next == NULL && in_node->prev == NULL)
+        ;
+
+    if(in_node->next == NULL)
+        in_node->prev->next = NULL;
+
+    if(in_node->prev == NULL)
+        in_node->next->prev = NULL;
+
+    else {
+        in_node->prev->next = in_node->next;
+        in_node->next->prev = in_node->prev;
+    }
+
+    in_list->length--;
+    free(in_node);
 }
 
 void strli_print(strlist* in_list)
@@ -145,7 +172,7 @@ void strli_discard(strlist* in_list)
     }
 }
 
-bool strli_search(strlist* in_list, strli_node* head, char* input_value)
+strli_node* strli_search(strlist* in_list, strli_node* head, char* input_value)
 {
     if(in_list->head == NULL)
         return NULL;
@@ -158,14 +185,14 @@ bool strli_search(strlist* in_list, strli_node* head, char* input_value)
 	if(!strcmp(input_value, temp->value))
 	{
 		printf("%s is in list.\n", temp->value);
-		return true;
+		return temp;
 	}
 
 	if(temp->next != NULL)
-		strli_search(in_list, temp->next, input_value);
+		return strli_search(in_list, temp->next, input_value);
 
 	printf("%s is not in list\n", input_value);
-	return false;
+	return NULL;
 
 }
 
