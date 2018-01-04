@@ -106,7 +106,8 @@ void post_transaction(char* input) {
 
     char out_msg[96];
     char seperator[] = " ";
-    strcpy(out_msg, sender);
+    strcpy(out_msg, "T ");
+    strcat(out_msg, sender);
     strcat(out_msg, seperator);
     strcat(out_msg, recipient);
     strcat(out_msg, seperator);

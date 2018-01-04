@@ -18,5 +18,4 @@ void hash256(unsigned char* output, const char* input) {
     */
 
     return;
-    //return result;
 }

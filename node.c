@@ -3,13 +3,13 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "nanomsg/include/nn.h"
 #include "nanomsg/include/pipeline.h"
 
 #include "blockchain.h"
 #include "linkedliststring.h"
-
 
 //Global variables
 char node_name[60];
@@ -19,8 +19,7 @@ strlist* other_nodes;
 blockchain* our_chain;
 pthread_t network_thread;
 
-
-
+//Send new block block to other nodes
 void* announce_block(strli_node* in_item) {
 
     int sock = nn_socket (AF_SP, NN_PUSH);
@@ -35,8 +34,6 @@ void* announce_block(strli_node* in_item) {
 
     return NULL;
 }
-
-
 
 //Continually searches for proper proof of work
 int mine() {
@@ -54,14 +51,13 @@ int mine() {
 
         if(result) {
             our_chain->last_proof_of_work = result;
-            new_transaction(our_chain,node_name,node_name, 100);
-            node_earnings += 100;
+            new_transaction(our_chain,node_name,node_name, 10);
+            node_earnings += 10;
 
             blink* a_block = new_block(our_chain, our_chain->last_proof_of_work);
-            //memcpy(our_chain->last_block, &(a_block->data),sizeof(block));
             
             print_block(a_block);
-            strli_map(other_nodes,announce_block);
+            strli_foreach(other_nodes,announce_block);
             printf("\nTOTAL NODE EARNINGS: %d notes\n", node_earnings);
         }
     }
@@ -69,9 +65,10 @@ int mine() {
 }
 
 
-//Insert transaction
+//Insert transaction [sender receiver amount]
 int insert_trans(char* input) {
-
+    
+    printf("Inserting Transaction!\n");
     char sender[32] = {0};
     char recipient[32] = {0};
     int amount;
@@ -82,10 +79,61 @@ int insert_trans(char* input) {
     return 0;
 }
 
+//Insert music [sender music]
+int insert_music(char* input) {
+    
+    printf("Inserting Music!\n");
+    char sender[32] = {0};
+    char music[64] = {0};
 
+    sscanf(input, "%s %s", sender, music);
+
+
+    return 0;
+}
+//Verify Foreign Block []
+void verify_foreign_block(char* input) {
+    printf("Verifying Foreign Block!\n");
+
+
+}
+
+//Regster New Node [node_ip]
+void register_new_node(char* input) {
+    
+    printf("Regstering New Block:");
+    if(strli_search(other_nodes, NULL, input))
+        return;
+
+    strli_append(other_nodes, input);
+}
+
+
+//Message type: T: transaction, M: music, B: block
+void process_message(char* in_msg) {
+
+    char* token = strtok(in_msg," ");
+    printf("MESSAGE TYPE: %s\n", token);
+
+    printf("MESSAGE CONTENTS: %s\n", in_msg + 2);
+
+    if(!strcmp(token, "T"))
+        insert_trans(in_msg + 2);
+    if(!strcmp(token, "M"))
+        insert_music(in_msg + 2);
+    if(!strcmp(token, "B"))
+        verify_foreign_block(in_msg + 2);
+    if(!strcmp(token, "N"))
+        register_new_node(in_msg +2 );
+
+
+}
+
+
+//Network interface function
 void* server() {
 
-    printf("Blockchain in C: Server v0.1\n");
+    printf("Blockchain in C Major: Server v0.1\n");
     printf("Node name: %s\n\n", node_name);
 
     int sock_in = nn_socket (AF_SP, NN_PULL);
@@ -103,9 +151,8 @@ void* server() {
         int bytes = nn_recv (sock_in, buf, sizeof(buf), 0);
         sleep(1);
         if(bytes > 0) {
-            printf ("RECEIVED \"%s\"\n", buf);
-            insert_trans(buf);
-            //print_list(our_chain->head);
+            printf("RECEIVED \"%s\"\n", buf);
+            process_message(buf);
         }
 
         //Send
@@ -135,10 +182,8 @@ int main(void) {
 
     //Create list of other nodes
     other_nodes = create_strlist();
-    
     strli_append(other_nodes, "ipc:///tmp/pipeline_1.ipc");
     strli_append(other_nodes, "ipc:///tmp/pipeline_2.ipc");
-    //strli_print(other_nodes);
 
     //Reset node earnings
     node_earnings = 0;
