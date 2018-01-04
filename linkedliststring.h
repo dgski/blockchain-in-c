@@ -176,3 +176,17 @@ bool strli_search(strli_node* head, char* input_value)
 
 }
 
+void strli_map(strlist* in_list, void* (*func)(strli_node* input)) {
+
+    if(in_list->head == NULL)
+        return;
+
+    strli_node* temp = in_list->head;
+    while(temp != NULL) {
+        (*func)(temp);
+        temp = temp->next;
+    }
+    return;
+
+}
+

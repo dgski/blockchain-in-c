@@ -18,8 +18,9 @@ unsigned char* hash_block(block* in_block);
 
 void print_block(blink* in_block)
 {
+    printf("---------------------------------------------\n");
     printf("BLOCK # %d\n",in_block->data.index);
-    printf("--------------------\n");
+    //printf("---------------------------------------------\n");
     printf("TIME: %d\n",in_block->data.time);
     printf("TRANSACTIONS:\n");
     
@@ -33,7 +34,7 @@ void print_block(blink* in_block)
     for(int i = 0; i < 32; i++) {
         printf("%d.",in_block->data.previous_hash[i]);
     }
-    printf("\n\n");
+    printf("\n---------------------------------------------\n\n");
 }
 
 blink* create_block()
@@ -134,6 +135,7 @@ void discard_list(blink* head)
 typedef struct blockchain
 {
     blink* head;
+    char last_block[BLOCK_STR_SIZE];
     unsigned char last_hash[32];
     transaction trans_list[20];
     unsigned int last_proof_of_work;
@@ -142,19 +144,6 @@ typedef struct blockchain
     
 } blockchain;
 
-blockchain* new_chain() {
-
-    blockchain* in_chain = malloc(sizeof(blockchain));
-    in_chain->head = create_block();
-    in_chain->head->data.proof = 100;
-    in_chain->last_proof_of_work = 100;
-    memset(in_chain->trans_list,0, sizeof(in_chain->trans_list));
-    memcpy(in_chain->last_hash, hash_block(&in_chain->head->data),32);
-    in_chain->trans_index = 0;
-    in_chain->new_index = 1;
-
-    return in_chain;
-}
 
 
 //Add transaction to transaction_list
@@ -239,26 +228,48 @@ unsigned char* hash_block(block* in_block) {
     return hash_value;
 }
 
-bool valid_proof(unsigned int last_proof, unsigned int proof) {
+bool valid_proof(unsigned char* last_hash, unsigned int proof) {
 
     char guess[120];
-    sprintf(guess, "%i%i",last_proof, proof);
+    sprintf(guess, "%s%i",last_hash, proof);
     unsigned char hash_value[32];
     hash256(hash_value,guess);
 
-    return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' && (hash_value[3] > 64 && hash_value[3] < 127));
+    return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' /*&& (hash_value[3] > 64 && hash_value[3] < 127)*/);
     return false;
 }
 
-unsigned int proof_of_work(unsigned int last_proof) {
+unsigned int proof_of_work(int* beaten, unsigned char* last_hash) {
 
     unsigned int proof = 0;
 
-    while(valid_proof(last_proof, proof) == false){
+    while(valid_proof(last_hash, proof) == false){
         //printf("%d\n", proof);
         proof += 1;
+
+        if(*beaten)
+            return -1;
     }
 
     return proof;
 
+}
+
+
+blockchain* new_chain() {
+
+    blockchain* in_chain = malloc(sizeof(blockchain));
+    in_chain->head = create_block();
+    in_chain->head->data.proof = 100;
+    in_chain->last_proof_of_work = 100;
+    memset(in_chain->trans_list,0, sizeof(in_chain->trans_list));
+    memcpy(in_chain->last_hash, hash_block(&in_chain->head->data),32);
+    in_chain->trans_index = 0;
+    in_chain->new_index = 1;
+
+    char block[BLOCK_STR_SIZE];
+    string_block(block,&(in_chain->head->data));
+    strcpy(in_chain->last_block,block);
+
+    return in_chain;
 }

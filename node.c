@@ -14,52 +14,55 @@
 //Global variables
 char node_name[60];
 unsigned int node_earnings;
+int* beaten;
 strlist* other_nodes;
 blockchain* our_chain;
 pthread_t network_thread;
 
-int announce_block(block* in_block) {
 
-    char block[BLOCK_STR_SIZE];
-    string_block(block, in_block);
-    printf("%s\n", block);
-    /*
+
+void* announce_block(strli_node* in_item) {
+
     int sock = nn_socket (AF_SP, NN_PUSH);
+    assert (sock >= 0);
+    int timeout = 200;
+    assert (nn_setsockopt(sock, NN_PUSH, NN_SNDTIMEO, &timeout,sizeof(timeout)));
+    assert (nn_connect (sock, in_item->value) >= 0);
+    printf("Announcing to: %s, ", in_item->value);
+    int bytes = nn_send (sock, our_chain->last_block, strlen(our_chain->last_block), NN_DONTWAIT);
+    printf("Bytes sent: %d\n", bytes);
+    nn_shutdown(sock,0);
 
-    for(int i = 0; i < other_nodes->length; i++) {
-
-
-
-
-    }*/
-
-
-    return 0;
+    return NULL;
 }
 
 
 
 //Continually searches for proper proof of work
 int mine() {
-
+    sleep(1);
     printf("Mining started.\n");
     unsigned int result;
     
     while(true) {
         unsigned int time_1 = time(NULL);
-        result = proof_of_work(our_chain->last_proof_of_work);
+        result = proof_of_work(beaten, our_chain->last_hash);
         unsigned int time_2 = time(NULL);
 
-        printf("PROOF OF WORK FOUND: %d\n", result);
-        printf("Time taken to mine: %f\n", (time_2 - time_1)/60.0);
+        //printf("PROOF OF WORK FOUND: %d\n", result);
+        printf("\nMINED: %f mins\n", (time_2 - time_1)/60.0);
 
         if(result) {
             our_chain->last_proof_of_work = result;
             new_transaction(our_chain,node_name,node_name, 100);
             node_earnings += 100;
+
             blink* a_block = new_block(our_chain, our_chain->last_proof_of_work);
+            //memcpy(our_chain->last_block, &(a_block->data),sizeof(block));
+            
             print_block(a_block);
-            printf("TOTAL NODE EARNINGS: %d", node_earnings);
+            strli_map(other_nodes,announce_block);
+            printf("\nTOTAL NODE EARNINGS: %d notes\n", node_earnings);
         }
     }
 
@@ -83,28 +86,29 @@ int insert_trans(char* input) {
 void* server() {
 
     printf("Blockchain in C: Server v0.1\n");
-    printf("Node name: %s\n", node_name);
+    printf("Node name: %s\n\n", node_name);
 
-    int sock = nn_socket (AF_SP, NN_PULL);
-    assert (sock >= 0);
-    assert (nn_bind (sock, "ipc:///tmp/pipeline.ipc") >= 0);
-    //int timeo = 200;
-    //assert (nn_setsockopt (sock, NN_SOL_SOCKET, NN_RCVTIMEO,&timeo, sizeof (timeo)));
+    int sock_in = nn_socket (AF_SP, NN_PULL);
+    assert (sock_in >= 0);
+    assert (nn_bind (sock_in, "ipc:///tmp/pipeline.ipc") >= 0);
+    int timeout = 200;
+    assert (nn_setsockopt (sock_in, NN_PULL, NN_RCVTIMEO,&timeout, sizeof (timeout)));
 
     char buf[100] = {0};
 
     while(true) {
 
+        //Receive
         memset(buf, 0, sizeof(buf));
-
-        int bytes = nn_recv (sock, buf, sizeof(buf), 0);
+        int bytes = nn_recv (sock_in, buf, sizeof(buf), 0);
         sleep(1);
-
         if(bytes > 0) {
-            printf ("b-in-c-server: RECEIVED \"%s\"\n", buf);
+            printf ("RECEIVED \"%s\"\n", buf);
             insert_trans(buf);
             //print_list(our_chain->head);
         }
+
+        //Send
 
     }
 
@@ -120,6 +124,10 @@ int main(void) {
     //Create blockchain
     our_chain = new_chain();
 
+    //Beaten variable
+    beaten = malloc(sizeof(int));
+    *beaten = 0;
+
     //Generate random node name
     srand(time(NULL));   // should only be called once
     int r = rand();   
@@ -128,11 +136,9 @@ int main(void) {
     //Create list of other nodes
     other_nodes = create_strlist();
     
-    strli_append(other_nodes, "node1023984384");
-    strli_append(other_nodes, "node101eoefjejfe232f23f");
-    strli_append(other_nodes, "nodehelale");
-    strli_print(other_nodes);
-    strli_discard(other_nodes);
+    strli_append(other_nodes, "ipc:///tmp/pipeline_1.ipc");
+    strli_append(other_nodes, "ipc:///tmp/pipeline_2.ipc");
+    //strli_print(other_nodes);
 
     //Reset node earnings
     node_earnings = 0;
