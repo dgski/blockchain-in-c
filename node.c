@@ -28,8 +28,9 @@ void* announce_block(strli_node* in_item) {
 
     int sock = nn_socket (AF_SP, NN_PUSH);
     assert (sock >= 0);
-    int timeout = 200;
-    assert (nn_setsockopt(sock, NN_PUSH, NN_SNDTIMEO, &timeout,sizeof(timeout)));
+    int timeout = 1000;
+    assert (nn_setsockopt(sock, NN_PUSH, NN_SNDTIMEO, &timeout, sizeof(timeout)));
+    printf("About to connect!\n");
     assert (nn_connect (sock, in_item->value) >= 0);
     printf("Announcing to: %s, \n", in_item->value);
     int bytes = nn_send (sock, our_chain->last_block, strlen(our_chain->last_block), 0);
@@ -91,16 +92,13 @@ int insert_music(char* input) {
 }
 //Verify Foreign Block []
 void verify_foreign_block(char* input) {
-
     printf("Verifying Foreign Block!\n");
-
-
 }
 
 //Regster New Node [node_ip]
 void register_new_node(char* input) {
     
-    printf("Regstering New Block:");
+    printf("Regstering New Node:");
     if(strli_search(other_nodes, NULL, input))
         return;
 
@@ -155,7 +153,7 @@ void* sendmsg(strli_node* item) {
 
 //Network interface function
 void* server() {
-
+    
     printf("Blockchain in C Major: Server v0.1\n");
     printf("Node name: %s\n\n", node_name);
 
@@ -164,6 +162,7 @@ void* server() {
     assert (nn_bind (sock_in, our_ip) >= 0);
     int timeout = 200;
     assert (nn_setsockopt (sock_in, NN_PULL, NN_RCVTIMEO,&timeout, sizeof (timeout)));
+    printf("SOCKET READY!\n");
 
     char buf[100] = {0};
 
@@ -176,12 +175,14 @@ void* server() {
             printf("RECEIVED \"%s\"\n", buf);
             process_message(buf);
         }
+        printf("cycle\n");
         sleep(1);
 
         //Send
-        /*strli_foreach(outbound_msgs, sendmsg);*/
+        strli_foreach(outbound_msgs, sendmsg);
 
     }
+    
 
     return 0;
 }
@@ -210,19 +211,17 @@ int main(int argc, char* argv[]) {
     else
         strcpy(our_ip, argv[1]);
     
-    /*
     //Create outbound message list & add our IP to be sent to all nodes
     strlist* outbound_msgs = create_strlist();
     char ip_broadcast[120] = {0};
     strcpy(ip_broadcast, "all:::N ");
     strcat(ip_broadcast, our_ip);
     strli_append(outbound_msgs, ip_broadcast);
-    */
 
     //Create list of other nodes
     other_nodes = create_strlist();
-    strli_append(other_nodes, "ipc:///tmp/pipeline_1.ipc");
-    strli_append(other_nodes, "ipc:///tmp/pipeline_2.ipc");
+    strli_append(other_nodes, "ipc:///tmp/pipeline_a.ipc");
+    strli_append(other_nodes, "ipc:///tmp/pipeline_b.ipc");
     strli_print(other_nodes);
 
 
