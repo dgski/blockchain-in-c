@@ -1,14 +1,16 @@
 #include <stdbool.h>
 
 //Node in String List
-typedef struct strli_node {
+typedef struct strli_node
+{
     char* value;
     struct strli_node* next;
     struct strli_node* prev;
 } strli_node;
 
 //String List
-typedef struct strlist {
+typedef struct strlist
+{
     strli_node* head;
     int length;
 } strlist;

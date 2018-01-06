@@ -5,14 +5,16 @@
 
 #include "linkedliststring.h"
 
-strlist* create_strlist() {
+//Create list of strings
+strlist* create_strlist()
+{
     strlist* list = malloc(sizeof(strlist));
     list->head = NULL;
     list->length = 0;
-
     return list;
 }
 
+//Create node in string list
 strli_node* strli_create_node(char* input_string)
 {
     strli_node* temp = malloc(sizeof(strli_node));
@@ -24,6 +26,7 @@ strli_node* strli_create_node(char* input_string)
     return temp;
 }
 
+//Add string to front of list
 strli_node* strli_prepend(strlist* in_list, char* input_value)
 {
     strli_node* temp = strli_create_node(input_value);
@@ -43,6 +46,7 @@ strli_node* strli_prepend(strlist* in_list, char* input_value)
     return in_list->head;
 }
 
+//Add string to back of string list
 strli_node* strli_append(strlist* in_list, char* input_value)
 {
     strli_node* temp = strli_create_node(input_value);
@@ -65,6 +69,7 @@ strli_node* strli_append(strlist* in_list, char* input_value)
     return in_list->head;
 }
 
+//Remove front of string list (dequeue)
 strli_node* strli_remove_front(strlist* in_list)
 {
     if(in_list->head == NULL)
@@ -79,6 +84,7 @@ strli_node* strli_remove_front(strlist* in_list)
     return in_list->head;
 }
 
+//Remove end of string list (pop)
 strli_node* strli_remove_end(strlist* in_list)
 {
     if(in_list->head == NULL)
@@ -103,6 +109,7 @@ strli_node* strli_remove_end(strlist* in_list)
     return in_list->head;
 }
 
+//Delete node from string list and add links between previous and next nodes
 void strli_delete_node(strlist* in_list, strli_node* in_node) {
 
     if(in_node == NULL)
@@ -126,6 +133,7 @@ void strli_delete_node(strlist* in_list, strli_node* in_node) {
     free(in_node);
 }
 
+//Print out string list
 void strli_print(strlist* in_list)
 {
     if(in_list->head == NULL)
@@ -144,26 +152,28 @@ void strli_print(strlist* in_list)
 
 }
 
+// Discard the entire string list (free memory);
 void strli_discard(strlist* in_list)
 {
-    if(in_list->head == NULL)
+    if(in_list->head == NULL) {
+        free(in_list);
         return;
+    }
 
     //Single element sized list
     if(in_list->head->next == NULL)
     {
         free(in_list->head->value);
         free(in_list->head);
+        free(in_list);
         return;
     }
-    
     
     strli_node* temp = in_list->head;
     temp = temp->next;
 
     while(in_list->head != NULL)
     {
-
         free(in_list->head->value);
         free(in_list->head);
         in_list->head = temp;
@@ -171,7 +181,7 @@ void strli_discard(strlist* in_list)
             temp = temp->next;
     }
 }
-
+//Search string list for string
 strli_node* strli_search(strlist* in_list, strli_node* head, char* input_value)
 {
     if(in_list->head == NULL)
@@ -196,8 +206,9 @@ strli_node* strli_search(strlist* in_list, strli_node* head, char* input_value)
 
 }
 
-void strli_foreach(strlist* in_list, void* (*func)(strli_node* input)) {
-
+//Run function for each element in string list (function takes node as input)
+void strli_foreach(strlist* in_list, void* (*func)(strli_node* input))
+{
     if(in_list->head == NULL)
         return;
 

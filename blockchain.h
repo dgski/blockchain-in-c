@@ -1,6 +1,7 @@
 #include <stdbool.h>
 
 #define BLOCK_STR_SIZE 1024
+#define BLOCK_DATA_SIZE 10
 
 //Transaction structure
 typedef struct transaction {
@@ -14,6 +15,7 @@ typedef struct block {
     unsigned int index;
     unsigned int time;
     transaction trans_list[20];
+    char posts[BLOCK_DATA_SIZE];
     unsigned int trans_list_length;
     unsigned int proof;
     unsigned char previous_hash[32];
@@ -31,6 +33,7 @@ typedef struct blockchain {
     char last_block[BLOCK_STR_SIZE];
     unsigned char last_hash[32];
     transaction trans_list[20];
+    char new_posts[BLOCK_DATA_SIZE];
     unsigned int last_proof_of_work;
     int trans_index;
     int new_index;

@@ -33,7 +33,7 @@ void* announce_block(strli_node* in_item) {
     printf("About to connect!\n");
     assert (nn_connect (sock, in_item->value) >= 0);
     printf("Announcing to: %s, \n", in_item->value);
-    int bytes = nn_send (sock, our_chain->last_block, strlen(our_chain->last_block), 0);
+    int bytes = nn_send (sock, our_chain->last_block, strlen(our_chain->last_block), NN_DONTWAIT);
     printf("Bytes sent: %d\n", bytes);
     nn_shutdown(sock,0);
 

@@ -3,8 +3,7 @@
 #include <ctype.h>
 #include <time.h>
 
-
-#include "hashing.h"
+#include "hash.h"
 #include "blockchain.h"
 
 //Create new Blockchain
@@ -16,10 +15,10 @@ blockchain* new_chain() {
     in_chain->head->data.proof = 100;
     in_chain->last_proof_of_work = 100;
     memset(in_chain->trans_list,0, sizeof(in_chain->trans_list));
+    memset(in_chain->new_posts, 0, sizeof(in_chain->new_posts));
     memcpy(in_chain->last_hash, hash_block(&in_chain->head->data),32);
     in_chain->trans_index = 0;
     in_chain->new_index = 1;
-
     char block[BLOCK_STR_SIZE];
     string_block(block,&(in_chain->head->data));
     strcpy(in_chain->last_block,block);
@@ -47,6 +46,7 @@ blink* new_block(blockchain* in_chain, unsigned int in_proof) {
     the_block->data.index = in_chain->new_index++;
     the_block->data.time = time(NULL);
     memcpy(the_block->data.trans_list,in_chain->trans_list, sizeof(in_chain->trans_list));
+    memset(the_block->data.posts, 0, sizeof(the_block->data.posts));
     the_block->data.trans_list_length= in_chain->trans_index;
     the_block->data.proof = in_proof;
     memcpy(the_block->data.previous_hash,in_chain->last_hash, 32);
@@ -64,9 +64,10 @@ blink* new_block(blockchain* in_chain, unsigned int in_proof) {
 
 void print_block(blink* in_block)
 {
-    printf("---------------------------------------------\n");
+    printf("---------------------------------------------------------------------------\n");
     printf("BLOCK # %d\n",in_block->data.index);
     printf("TIME: %d\n",in_block->data.time);
+    printf("POSTS: %s\n",in_block->data.posts);
     printf("TRANSACTIONS:\n");
 
     for(int i = 0; i < in_block->data.trans_list_length; i++)
@@ -76,9 +77,9 @@ void print_block(blink* in_block)
     printf("PREV HASH: ");
 
     for(int i = 0; i < 32; i++)
-        printf("%d.",in_block->data.previous_hash[i]);
+        printf("%x",in_block->data.previous_hash[i]);
         
-    printf("\n---------------------------------------------\n\n");
+    printf("\n---------------------------------------------------------------------------\n\n");
 }
 
 char* string_block(char* output, block* in_block) {
@@ -106,7 +107,7 @@ char* string_block(char* output, block* in_block) {
 
     //Add previous hash
     for(int i = 0; i < 32; i++) {
-        sprintf(buffer,"%d", in_block->previous_hash[i]);
+        sprintf(buffer,"%x", in_block->previous_hash[i]);
         strcat(block_string, buffer);
     }
 
@@ -126,6 +127,34 @@ unsigned char* hash_block(block* in_block) {
     return hash_value;
 }
 
+bool valid_proof(unsigned char* last_hash, unsigned int proof) {
+
+    char guess[120];
+    sprintf(guess, "%s%i",last_hash, proof);
+    unsigned char hash_value[32];
+    hash256(hash_value,guess);
+
+    return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' /*&& (hash_value[3] > 64 && hash_value[3] < 127)*/);
+    return false;
+}
+
+unsigned int proof_of_work(int* beaten, unsigned char* last_hash) {
+
+    unsigned int proof = 0;
+
+    while(valid_proof(last_hash, proof) == false){
+        //printf("%d\n", proof);
+        proof += 1;
+        if(*beaten)
+            return -1;
+    }
+
+    return proof;
+
+}
+
+
+//Block-link FUNCTIONS:
 blink* blink_create()
 {
     blink* temp = malloc(sizeof(blink));
@@ -221,32 +250,6 @@ void blink_discard_list(blink* head)
         if(temp != NULL)
             temp = temp->next;
     }
-}
-
-bool valid_proof(unsigned char* last_hash, unsigned int proof) {
-
-    char guess[120];
-    sprintf(guess, "%s%i",last_hash, proof);
-    unsigned char hash_value[32];
-    hash256(hash_value,guess);
-
-    return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' /*&& (hash_value[3] > 64 && hash_value[3] < 127)*/);
-    return false;
-}
-
-unsigned int proof_of_work(int* beaten, unsigned char* last_hash) {
-
-    unsigned int proof = 0;
-
-    while(valid_proof(last_hash, proof) == false){
-        //printf("%d\n", proof);
-        proof += 1;
-        if(*beaten)
-            return -1;
-    }
-
-    return proof;
-
 }
 
 

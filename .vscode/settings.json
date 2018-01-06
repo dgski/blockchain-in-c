@@ -1,6 +1,8 @@
 {
     "C_Cpp.errorSquiggles": "Disabled",
     "files.associations": {
-        "unistd.h": "c"
+        "unistd.h": "c",
+        "blockchain.h": "c",
+        "time.h": "c"
     }
 }
