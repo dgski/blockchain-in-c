@@ -19,14 +19,14 @@ pthread_t network_thread;
 void* send_new(c_transaction* in_trans) {
     if(in_trans->status == 0) {
 
-        //printf("Sending: %s\n", in_trans->message);
-        int sock = nn_socket (AF_SP, NN_PUSH);
-        assert (sock >= 0);
-        assert (nn_connect (sock, "ipc:///tmp/pipeline.ipc") >= 0);
-        int bytes = nn_send (sock, in_trans->message, strlen(in_trans->message), 0);
-        //printf("Bytes sent: %d\n", bytes);
+        int sock_out = nn_socket (AF_SP, NN_PUSH);
+        assert (sock_out >= 0);
+        assert (nn_connect (sock_out, "ipc:///tmp/pipeline.ipc") >= 0);
+        printf("\nSending: %s\n", in_trans->message);
+        int bytes = nn_send (sock_out, in_trans->message, strlen(in_trans->message), 0);
+        printf("Bytes sent: %d\n", bytes);
         in_trans->status = 1;
-        nn_shutdown(sock,0);
+        //nn_shutdown(sock,0);
     }
     return NULL;
 }
@@ -120,12 +120,12 @@ void post_transaction(char* input) {
 }
 
 int main(void) {
-
+    
     //Setup
     printf("Blockchain in C: Client v0.1 by DG\n'h' for help/commandlist\n");
     char buffer[120] = {0};
     main_queue = new_queue();
-
+    
     //Network thread
     pthread_create(&network_thread, NULL, check_network, NULL);
 

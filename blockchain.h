@@ -1,12 +1,15 @@
 #include <stdbool.h>
 
-#define BLOCK_STR_SIZE 1024
-#define BLOCK_DATA_SIZE 10
+#define BLOCK_STR_SIZE 1572
+#define BLOCK_DATA_SIZE 8
+#define TRANS_LIST_SIZE 20
+#define HASH_SIZE 32
+#define USER_ADDRESS_SIZE 32
 
 //Transaction structure
 typedef struct transaction {
-    char sender[32];
-    char recipient[32];
+    char sender[USER_ADDRESS_SIZE];
+    char recipient[USER_ADDRESS_SIZE];
     int amount;
 } transaction;
 
@@ -14,11 +17,11 @@ typedef struct transaction {
 typedef struct block {
     unsigned int index;
     unsigned int time;
-    transaction trans_list[20];
+    transaction trans_list[TRANS_LIST_SIZE];
     char posts[BLOCK_DATA_SIZE];
     unsigned int trans_list_length;
-    unsigned int proof;
-    unsigned char previous_hash[32];
+    unsigned long proof;
+    unsigned char previous_hash[HASH_SIZE];
 } block;
 
 //Chain link structure
@@ -31,8 +34,8 @@ typedef struct blink {
 typedef struct blockchain {
     blink* head;
     char last_block[BLOCK_STR_SIZE];
-    unsigned char last_hash[32];
-    transaction trans_list[20];
+    unsigned char last_hash[HASH_SIZE];
+    transaction trans_list[TRANS_LIST_SIZE];
     char new_posts[BLOCK_DATA_SIZE];
     unsigned int last_proof_of_work;
     int trans_index;
@@ -59,8 +62,8 @@ void blink_print_list(blink* head);
 void blink_discard_list(blink* head);
 
 //Work functions
-bool valid_proof(unsigned char* last_hash, unsigned int proof);
-unsigned int proof_of_work(int* beaten, unsigned char* last_hash);
+bool valid_proof(unsigned char* last_hash, unsigned long proof);
+unsigned long proof_of_work(int* beaten, unsigned char* last_hash);
 
 
 

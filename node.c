@@ -4,9 +4,11 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #include "nanomsg/include/nn.h"
 #include "nanomsg/include/pipeline.h"
+
 
 #include "blockchain.h"
 #include "linkedliststring.h"
@@ -22,13 +24,12 @@ char our_ip[100] = {0};
 strlist* outbound_msgs;
 strlist* other_nodes;
 
-
 //Send new block block to other nodes
 void* announce_block(strli_node* in_item) {
 
     int sock = nn_socket (AF_SP, NN_PUSH);
     assert (sock >= 0);
-    int timeout = 1000;
+    int timeout = 200;
     assert (nn_setsockopt(sock, NN_PUSH, NN_SNDTIMEO, &timeout, sizeof(timeout)));
     printf("About to connect!\n");
     assert (nn_connect (sock, in_item->value) >= 0);
@@ -40,6 +41,7 @@ void* announce_block(strli_node* in_item) {
     return NULL;
 }
 
+
 //Continually searches for proper proof of work
 int mine() {
     sleep(1);
@@ -47,6 +49,7 @@ int mine() {
     unsigned int result;
     
     while(true) {
+        
         unsigned int time_1 = time(NULL);
         result = proof_of_work(beaten, our_chain->last_hash);
         unsigned int time_2 = time(NULL);
@@ -56,12 +59,14 @@ int mine() {
 
         if(result) {
             our_chain->last_proof_of_work = result;
-            new_transaction(our_chain,node_name,node_name, 10);
-            node_earnings += 10;
+            new_transaction(our_chain,node_name,node_name, 2);
+            node_earnings += 2;
 
             blink* a_block = new_block(our_chain, our_chain->last_proof_of_work);
-            
             print_block(a_block);
+            char block_buffer[BLOCK_STR_SIZE];
+            string_block(block_buffer, &a_block->data);
+            printf("%s\n", block_buffer);
             strli_foreach(other_nodes,announce_block);
             printf("\nTOTAL NODE EARNINGS: %d notes\n", node_earnings);
         }
@@ -125,8 +130,7 @@ void process_message(char* in_msg) {
 
 
 }
-
-void* sendmsg(strli_node* item) {
+void* send_node_msg(strli_node* item) {
 
     printf("SENDING: %s", item->value);
     char* toWhom = strtok(item->value,":::");
@@ -150,12 +154,11 @@ void* sendmsg(strli_node* item) {
     return NULL;
 }
 
-
 //Network interface function
 void* server() {
     
     printf("Blockchain in C Major: Server v0.1\n");
-    printf("Node name: %s\n\n", node_name);
+    //printf("Node name: %s\n\n", node_name);
 
     int sock_in = nn_socket (AF_SP, NN_PULL);
     assert (sock_in >= 0);
@@ -164,7 +167,7 @@ void* server() {
     assert (nn_setsockopt (sock_in, NN_PULL, NN_RCVTIMEO,&timeout, sizeof (timeout)));
     printf("SOCKET READY!\n");
 
-    char buf[100] = {0};
+    char buf[1000] = {0};
 
     while(true) {
 
@@ -175,11 +178,9 @@ void* server() {
             printf("RECEIVED \"%s\"\n", buf);
             process_message(buf);
         }
-        printf("cycle\n");
-        sleep(1);
 
         //Send
-        strli_foreach(outbound_msgs, sendmsg);
+        //strli_foreach(outbound_msgs, send_node_msg);
 
     }
     
@@ -223,7 +224,7 @@ int main(int argc, char* argv[]) {
     strli_append(other_nodes, "ipc:///tmp/pipeline_a.ipc");
     strli_append(other_nodes, "ipc:///tmp/pipeline_b.ipc");
     strli_print(other_nodes);
-
+    
 
     //Reset node earnings
     node_earnings = 0;
