@@ -178,6 +178,7 @@ int dict_del_elem(dict* in_dict, char* in_key) {
     int left_or_right = 2;
 
     if(parent == NULL) {
+        printf("no parent!\n");
         to_delete = bt_node_search(in_dict->head, in_key);
     }
     else if(parent->left != NULL) {

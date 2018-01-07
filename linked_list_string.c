@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "linkedliststring.h"
+#include "linked_list_string.h"
 
 //Create list of strings
 strlist* create_strlist()

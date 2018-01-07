@@ -20,7 +20,7 @@ typedef struct block {
     transaction trans_list[TRANS_LIST_SIZE];
     char posts[BLOCK_DATA_SIZE];
     unsigned int trans_list_length;
-    unsigned long proof;
+    long proof;
     unsigned char previous_hash[HASH_SIZE];
 } block;
 
@@ -37,7 +37,7 @@ typedef struct blockchain {
     unsigned char last_hash[HASH_SIZE];
     transaction trans_list[TRANS_LIST_SIZE];
     char new_posts[BLOCK_DATA_SIZE];
-    unsigned int last_proof_of_work;
+    long last_proof_of_work;
     int trans_index;
     int new_index;
 } blockchain;
@@ -45,7 +45,7 @@ typedef struct blockchain {
 //Chain functions
 blockchain* new_chain();
 void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, int in_amount);
-blink* new_block(blockchain* in_chain, unsigned int in_proof);
+blink* append_block(blockchain* in_chain, unsigned int in_proof);
 
 //Block functions
 void print_block(blink* in_block);
@@ -62,8 +62,8 @@ void blink_print_list(blink* head);
 void blink_discard_list(blink* head);
 
 //Work functions
-bool valid_proof(unsigned char* last_hash, unsigned long proof);
-unsigned long proof_of_work(int* beaten, unsigned char* last_hash);
+bool valid_proof(unsigned char* last_hash, long proof);
+long proof_of_work(int* beaten, unsigned char* last_hash);
 
 
 

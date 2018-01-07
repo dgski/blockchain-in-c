@@ -9,9 +9,8 @@
 #include "nanomsg/include/nn.h"
 #include "nanomsg/include/pipeline.h"
 
-
 #include "blockchain.h"
-#include "linkedliststring.h"
+#include "linked_list_string.h"
 
 //Global variables
 char node_name[60];
@@ -27,14 +26,18 @@ strlist* other_nodes;
 //Send new block block to other nodes
 void* announce_block(strli_node* in_item) {
 
-    int sock = nn_socket (AF_SP, NN_PUSH);
+    if(!strcmp(in_item->value, our_ip)) return NULL;
+
+    int sock = nn_socket(AF_SP, NN_PUSH);
     assert (sock >= 0);
-    int timeout = 200;
-    assert (nn_setsockopt(sock, NN_PUSH, NN_SNDTIMEO, &timeout, sizeof(timeout)));
-    printf("About to connect!\n");
+    int timeout = 50;
+    assert (nn_setsockopt(sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
     assert (nn_connect (sock, in_item->value) >= 0);
-    printf("Announcing to: %s, \n", in_item->value);
-    int bytes = nn_send (sock, our_chain->last_block, strlen(our_chain->last_block), NN_DONTWAIT);
+    printf("Announcing to: %s, ", in_item->value);
+    char message[2000];
+    strcpy(message, "B ");
+    strcat(message, our_chain->last_block);
+    int bytes = nn_send (sock, message, strlen(message), 0);
     printf("Bytes sent: %d\n", bytes);
     nn_shutdown(sock,0);
 
@@ -46,7 +49,7 @@ void* announce_block(strli_node* in_item) {
 int mine() {
     sleep(1);
     printf("Mining started.\n");
-    unsigned int result;
+    long result;
     
     while(true) {
         
@@ -54,22 +57,32 @@ int mine() {
         result = proof_of_work(beaten, our_chain->last_hash);
         unsigned int time_2 = time(NULL);
 
-        //printf("PROOF OF WORK FOUND: %d\n", result);
-        printf("\nMINED: %f mins\n", (time_2 - time_1)/60.0);
+        if(result > 0) {
 
-        if(result) {
+            //printf("PROOF OF WORK FOUND: %d\n", result);
+            printf("\nMINED: %f mins\n", (time_2 - time_1)/60.0);
+
             our_chain->last_proof_of_work = result;
             new_transaction(our_chain,node_name,node_name, 2);
             node_earnings += 2;
 
-            blink* a_block = new_block(our_chain, our_chain->last_proof_of_work);
+            blink* a_block = append_block(our_chain, our_chain->last_proof_of_work);
             print_block(a_block);
-            char block_buffer[BLOCK_STR_SIZE];
-            string_block(block_buffer, &a_block->data);
-            printf("%s\n", block_buffer);
+            //char block_buffer[BLOCK_STR_SIZE];
+            //string_block(block_buffer, &a_block->data);
+            //printf("%s\n", block_buffer);
             strli_foreach(other_nodes,announce_block);
-            printf("\nTOTAL NODE EARNINGS: %d notes\n", node_earnings);
         }
+        else {
+            printf("Abandoning our block.\n");
+            memset(our_chain->trans_list, 0, sizeof(our_chain->trans_list));
+            memset(our_chain->new_posts, 0, sizeof(our_chain->new_posts));
+            our_chain->trans_index = 0;
+            our_chain->new_index = 0;
+            *beaten = 0;
+        }
+        printf("\nTOTAL NODE EARNINGS: %d notes\n", node_earnings);
+
     }
 }
 
@@ -87,7 +100,7 @@ int insert_trans(char* input) {
 }
 
 //Insert music [sender music]
-int insert_music(char* input) {
+int insert_post(char* input) {
 
     printf("Inserting Music!\n");
     char sender[32] = {0};
@@ -97,7 +110,28 @@ int insert_music(char* input) {
 }
 //Verify Foreign Block []
 void verify_foreign_block(char* input) {
-    printf("Verifying Foreign Block!\n");
+    printf("Verifying Foreign Block:\n%s\n", input);
+
+    char* index = strtok(input,".");
+    printf( "%s\n", index );
+    char* time = strtok(NULL, ".");
+    char* transactions = strtok(NULL, ".");
+    char* trans_size = strtok(NULL, ".");
+    char* proof = strtok(NULL, ".");
+    char* hash = strtok(NULL, ".");
+
+    long the_proof;
+    sscanf (proof,"%020lu",&the_proof);
+
+    if(valid_proof(our_chain->last_hash, the_proof)) {
+        printf("RECEIVED BLOCK IS VALID.\n");
+        *beaten = 1; //Will stop mining current block
+    }
+    else
+        printf("INVALID BLOCK RECIEVED.\n");
+
+
+    return;
 }
 
 //Regster New Node [node_ip]
@@ -111,22 +145,26 @@ void register_new_node(char* input) {
 }
 
 
-//Message type: T: transaction, M: music, B: block
+//Message type: T: transaction, P: post, B: block, N: new node, L: blockchain length, C: chain
 void process_message(char* in_msg) {
 
     char* token = strtok(in_msg," ");
-    printf("MESSAGE TYPE: %s\n", token);
+    //printf("MESSAGE TYPE: %s\n", token);
 
-    printf("MESSAGE CONTENTS: %s\n", in_msg + 2);
+    //printf("MESSAGE CONTENTS: %s\n", in_msg + 2);
 
     if(!strcmp(token, "T"))
         insert_trans(in_msg + 2);
-    if(!strcmp(token, "M"))
-        insert_music(in_msg + 2);
+    if(!strcmp(token, "P"))
+        insert_post(in_msg + 2);
     if(!strcmp(token, "B"))
         verify_foreign_block(in_msg + 2);
     if(!strcmp(token, "N"))
-        register_new_node(in_msg + 2);
+        ;
+    if(!strcmp(token, "L"))
+        ;
+    if(!strcmp(token, "C"))
+        ;
 
 
 }
@@ -175,7 +213,7 @@ void* server() {
         memset(buf, 0, sizeof(buf));
         int bytes = nn_recv (sock_in, buf, sizeof(buf), 0);
         if(bytes > 0) {
-            printf("RECEIVED \"%s\"\n", buf);
+            printf("\nRECEIVED \"%s\"\n", buf);
             process_message(buf);
         }
 
@@ -188,6 +226,21 @@ void* server() {
     return 0;
 }
 
+int read_config() {
+    FILE* config = fopen("node.cfg", "r");
+
+    if(config == NULL) return 0;
+
+    char buffer[120] = {0};
+    while (fgets(buffer, sizeof(buffer), config)) {
+        if(buffer[strlen(buffer) -1] == '\n') buffer[strlen(buffer) -1] = 0;
+        strli_append(other_nodes, buffer);
+    }
+
+    fclose(config);
+
+    return 0;
+}
 
 
 
@@ -201,6 +254,12 @@ int main(int argc, char* argv[]) {
     beaten = malloc(sizeof(int));
     *beaten = 0;
 
+    //Create list of other nodes
+    other_nodes = create_strlist();
+    read_config();
+    strli_print(other_nodes);
+
+
     //Generate random node name
     srand(time(NULL));   // should only be called once
     int r = rand();   
@@ -208,7 +267,7 @@ int main(int argc, char* argv[]) {
 
     //Get our ip address from argv
     if(argc < 2)
-        strcpy(our_ip, "ipc:///tmp/pipeline.ipc");
+        strcpy(our_ip, "ipc:///tmp/pipeline_0.ipc");
     else
         strcpy(our_ip, argv[1]);
     
@@ -218,13 +277,6 @@ int main(int argc, char* argv[]) {
     strcpy(ip_broadcast, "all:::N ");
     strcat(ip_broadcast, our_ip);
     strli_append(outbound_msgs, ip_broadcast);
-
-    //Create list of other nodes
-    other_nodes = create_strlist();
-    strli_append(other_nodes, "ipc:///tmp/pipeline_a.ipc");
-    strli_append(other_nodes, "ipc:///tmp/pipeline_b.ipc");
-    strli_print(other_nodes);
-    
 
     //Reset node earnings
     node_earnings = 0;
