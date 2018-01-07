@@ -42,7 +42,7 @@ void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, 
 }
 
 //Create and blink_append new block
-blink* append_block(blockchain* in_chain, unsigned int in_proof) {
+blink* append_current_block(blockchain* in_chain, long in_proof) {
 
     //Create block
     blink* the_block = blink_append(in_chain->head);
@@ -72,9 +72,47 @@ blink* append_block(blockchain* in_chain, unsigned int in_proof) {
     return the_block;
 }
 
-void print_block(blink* in_block)
+blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int in_time, transaction* trans_list,
+ char* posts, unsigned int trans_list_length, long proof) {
+
+     //Create block
+    blink* the_block = blink_append(in_chain->head);
+
+    //Add data
+    the_block->data.index = index;
+    the_block->data.time = in_time;
+    memcpy(the_block->data.trans_list,trans_list,68);
+    memset(the_block->data.posts, 0, sizeof(the_block->data.posts));
+    the_block->data.trans_list_length= trans_list_length;
+    the_block->data.proof = proof;
+    memcpy(the_block->data.previous_hash,in_chain->last_hash, HASH_SIZE);
+
+    //Register new block hash
+    memcpy(in_chain->last_hash, hash_block(&the_block->data), HASH_SIZE);
+
+    //Reset blockchain intake
+    memset(in_chain->trans_list,0, sizeof(in_chain->trans_list));
+    in_chain->last_proof_of_work = proof;
+    in_chain->trans_index = 0;
+    in_chain->new_index = 0;
+
+    //Register as latest block
+    char block_str[BLOCK_STR_SIZE];
+    string_block(block_str, &the_block->data);
+    strcpy(in_chain->last_block,block_str);
+
+    return the_block;
+
+
+
+}
+
+void print_block(blink* in_block, char separator)
 {
-    printf("---------------------------------------------------------------------------\n");
+    for(int i = 0; i < 77; i++)
+        printf("%c", separator);
+    printf("\n");
+    
     printf("BLOCK # %d\n",in_block->data.index);
     printf("TIME: %d\n",in_block->data.time);
     printf("POSTS: %s\n",in_block->data.posts);
@@ -89,7 +127,10 @@ void print_block(blink* in_block)
     for(int i = 0; i < 32; i++)
         printf("%x",in_block->data.previous_hash[i]);
         
-    printf("\n---------------------------------------------------------------------------\n\n");
+    printf("\n");
+    for(int i = 0; i < 77; i++)
+        printf("%c", separator);
+    printf("\n\n");
 }
 
 //Stringifies of the current block
@@ -107,9 +148,11 @@ char* string_block(char* output, block* in_block) {
     //Add transactions
     for(int i = 0; i < in_block->trans_list_length; i++) {
 
-        sprintf(buffer,"%s%s%010d.", in_block->trans_list[i].sender,in_block->trans_list[i].recipient,in_block->trans_list[i].amount);
+        sprintf(buffer,"%s:%s:%010d", in_block->trans_list[i].sender,in_block->trans_list[i].recipient,in_block->trans_list[i].amount);
+        if(i - 1 < in_block->trans_list_length) strcat(buffer,"-");
         strcat(block_string,buffer);
     }
+    strcat(block_string,".");
 
     //Add transaction list length
     sprintf(buffer,"%02d.", in_block->trans_list_length);
@@ -128,6 +171,26 @@ char* string_block(char* output, block* in_block) {
     strcpy(output, block_string);
 
     return output;
+}
+
+int extract_transactions(transaction* trans_array, char* in_trans) {
+    printf("%s\n", in_trans);
+    char* sender = strtok(in_trans,":");
+    printf("sender: %s\n", sender);
+    char* reciever = strtok(NULL, ":");
+    printf("reciever: %s\n", reciever);
+    char* amount = strtok(NULL, ":");
+    printf("amount: %s\n", amount);
+
+
+    strcpy(trans_array[0].sender, sender);
+    strcpy(trans_array[0].recipient, reciever);
+    trans_array[0].amount = atoi(amount);
+
+
+
+
+    return 0;
 }
 
 unsigned char* hash_block(block* in_block) {
@@ -239,7 +302,7 @@ void blink_print_list(blink* head)
 
     while(temp != NULL)
     {
-        print_block(temp);
+        print_block(temp,'-');
         temp = temp->next;
     }
     printf("\n");

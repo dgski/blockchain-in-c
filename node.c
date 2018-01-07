@@ -66,8 +66,8 @@ int mine() {
             new_transaction(our_chain,node_name,node_name, 2);
             node_earnings += 2;
 
-            blink* a_block = append_block(our_chain, our_chain->last_proof_of_work);
-            print_block(a_block);
+            blink* a_block = append_current_block(our_chain, our_chain->last_proof_of_work);
+            print_block(a_block,'-');
             //char block_buffer[BLOCK_STR_SIZE];
             //string_block(block_buffer, &a_block->data);
             //printf("%s\n", block_buffer);
@@ -75,10 +75,6 @@ int mine() {
         }
         else {
             printf("Abandoning our block.\n");
-            memset(our_chain->trans_list, 0, sizeof(our_chain->trans_list));
-            memset(our_chain->new_posts, 0, sizeof(our_chain->new_posts));
-            our_chain->trans_index = 0;
-            our_chain->new_index = 0;
             *beaten = 0;
         }
         printf("\nTOTAL NODE EARNINGS: %d notes\n", node_earnings);
@@ -113,7 +109,6 @@ void verify_foreign_block(char* input) {
     printf("Verifying Foreign Block:\n%s\n", input);
 
     char* index = strtok(input,".");
-    printf( "%s\n", index );
     char* time = strtok(NULL, ".");
     char* transactions = strtok(NULL, ".");
     char* trans_size = strtok(NULL, ".");
@@ -125,6 +120,17 @@ void verify_foreign_block(char* input) {
 
     if(valid_proof(our_chain->last_hash, the_proof)) {
         printf("RECEIVED BLOCK IS VALID.\n");
+
+        char posts[] = {};
+        transaction rec_trans[20] = {0};
+        extract_transactions(rec_trans, transactions);
+        //Add block and reset chain
+        blink* a_block = append_new_block(our_chain, atoi(index), atoi(time),rec_trans, posts, atoi(trans_size), the_proof);
+        printf("\nABSORBED:\n");
+        print_block(a_block,'~');
+
+        //Add received block
+
         *beaten = 1; //Will stop mining current block
     }
     else
