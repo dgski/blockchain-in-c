@@ -1,7 +1,7 @@
 #include <openssl/sha.h>
 #include <string.h>
 
-void hash256(unsigned char* output, const char* input) {
+void aahash256(unsigned char* output, const char* input) {
 
     size_t length = strlen(input);
     unsigned char md[32];
@@ -19,3 +19,4 @@ void hash256(unsigned char* output, const char* input) {
 
     return;
 }
+

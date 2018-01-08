@@ -5,6 +5,15 @@
 #define TRANS_LIST_SIZE 20
 #define HASH_SIZE 32
 #define USER_ADDRESS_SIZE 32
+#define GUESS_SIZE 200
+
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_CYAN    "\x1b[36m"
+
+
+
 
 //Transaction structure
 typedef struct transaction {

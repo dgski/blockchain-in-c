@@ -3,6 +3,8 @@
     "files.associations": {
         "unistd.h": "c",
         "blockchain.h": "c",
-        "time.h": "c"
+        "time.h": "c",
+        "hash.h": "c",
+        "linked_list_string.h": "c"
     }
 }

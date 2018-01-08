@@ -21,7 +21,7 @@ void* send_new(c_transaction* in_trans) {
 
         int sock_out = nn_socket (AF_SP, NN_PUSH);
         assert (sock_out >= 0);
-        assert (nn_connect (sock_out, "ipc:///tmp/pipeline.ipc") >= 0);
+        assert (nn_connect (sock_out, "ipc:///tmp/pipeline_1.ipc") >= 0);
         printf("\nSending: %s\n", in_trans->message);
         int bytes = nn_send (sock_out, in_trans->message, strlen(in_trans->message), 0);
         printf("Bytes sent: %d\n", bytes);

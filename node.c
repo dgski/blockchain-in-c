@@ -11,6 +11,7 @@
 
 #include "blockchain.h"
 #include "linked_list_string.h"
+#include "hash2.h"
 
 //Global variables
 char node_name[60];
@@ -60,7 +61,9 @@ int mine() {
         if(result > 0) {
 
             //printf("PROOF OF WORK FOUND: %d\n", result);
-            printf("\nMINED: %f mins\n", (time_2 - time_1)/60.0);
+            printf(ANSI_COLOR_GREEN);
+
+            printf("\nMINED: %.4f min(s)\n", (time_2 - time_1)/60.0);
 
             our_chain->last_proof_of_work = result;
             new_transaction(our_chain,node_name,node_name, 2);
@@ -68,35 +71,38 @@ int mine() {
 
             blink* a_block = append_current_block(our_chain, our_chain->last_proof_of_work);
             print_block(a_block,'-');
+            printf(ANSI_COLOR_RESET);
             //char block_buffer[BLOCK_STR_SIZE];
             //string_block(block_buffer, &a_block->data);
             //printf("%s\n", block_buffer);
             strli_foreach(other_nodes,announce_block);
         }
         else {
-            printf("Abandoning our block.\n");
+            printf("Abandoning our in-progress block.\n");
             *beaten = 0;
         }
-        printf("\nTOTAL NODE EARNINGS: %d notes\n", node_earnings);
+        printf("\nTotal Node Earnings: %d notes\n", node_earnings);
 
     }
 }
 
 
 //Insert transaction [sender receiver amount]
-int insert_trans(char* input) {
+int insert_trans(const char* input) {
 
+    
     printf("Inserting Transaction!\n");
     char sender[32] = {0};
     char recipient[32] = {0};
     int amount;
     sscanf(input, "%s %s %d", sender, recipient, &amount);
     new_transaction(our_chain,sender,recipient,amount);
+
     return 0;
 }
 
 //Insert music [sender music]
-int insert_post(char* input) {
+int insert_post(const char* input) {
 
     printf("Inserting Music!\n");
     char sender[32] = {0};
@@ -105,36 +111,64 @@ int insert_post(char* input) {
     return 0;
 }
 //Verify Foreign Block []
-void verify_foreign_block(char* input) {
-    printf("Verifying Foreign Block:\n%s\n", input);
+void verify_foreign_block(const char* input) {
+    printf("Verifying Foreign Block: %s\n", input);
 
-    char* index = strtok(input,".");
+    char f_block[1000] = {0};
+    strcpy(f_block, input);
+
+    char* index = strtok(f_block,".");
     char* time = strtok(NULL, ".");
     char* transactions = strtok(NULL, ".");
+    printf("transactions: %s\n", transactions);
     char* trans_size = strtok(NULL, ".");
     char* proof = strtok(NULL, ".");
+    printf("proof: %s\n", proof);
+
     char* hash = strtok(NULL, ".");
+    printf("recieved hash: %s\n", hash);
+    printf("our_last_hash: ");
+    for(int i = 0; i < 32; i++)
+        printf("%02x",our_chain->last_hash[i]);
+    printf("\n");
+
 
     long the_proof;
-    sscanf (proof,"%020lu",&the_proof);
+    sscanf (proof,"%020ld",&the_proof);
+    printf("LONG FORM: %ld\n", the_proof);
+    printf("the result: %d\n", valid_proof(our_chain->last_hash, the_proof));
+
+    char guess[GUESS_SIZE] = {0};
+    sprintf(guess, "%s%020ld",our_chain->last_hash, the_proof);
+
+    unsigned char tester[32] = {0};
+    aahash256(tester,guess);
+    printf("generated hash: ");
+    for(int i = 0; i < 32; i++)
+        printf("%02x",tester[i]);
+    printf("\n");
+
+    
 
     if(valid_proof(our_chain->last_hash, the_proof)) {
-        printf("RECEIVED BLOCK IS VALID.\n");
+        printf("Block recieved is Valid.\n");
 
         char posts[] = {};
         transaction rec_trans[20] = {0};
         extract_transactions(rec_trans, transactions);
         //Add block and reset chain
         blink* a_block = append_new_block(our_chain, atoi(index), atoi(time),rec_trans, posts, atoi(trans_size), the_proof);
+        printf(ANSI_COLOR_CYAN);
         printf("\nABSORBED:\n");
-        print_block(a_block,'~');
+        print_block(a_block,'-');
+        printf(ANSI_COLOR_RESET);
 
         //Add received block
 
         *beaten = 1; //Will stop mining current block
     }
     else
-        printf("INVALID BLOCK RECIEVED.\n");
+        printf("Block recieved is invalid.\n");
 
 
     return;
@@ -143,7 +177,7 @@ void verify_foreign_block(char* input) {
 //Regster New Node [node_ip]
 void register_new_node(char* input) {
     
-    printf("Regstering New Node:");
+    printf("Registering New Node:");
     if(strli_search(other_nodes, NULL, input))
         return;
 
@@ -152,19 +186,22 @@ void register_new_node(char* input) {
 
 
 //Message type: T: transaction, P: post, B: block, N: new node, L: blockchain length, C: chain
-void process_message(char* in_msg) {
+void process_message(const char* in_msg) {
 
-    char* token = strtok(in_msg," ");
+    char to_process[1000] = {0};
+    strcpy(to_process, in_msg);
+
+    char* token = strtok(to_process," ");
     //printf("MESSAGE TYPE: %s\n", token);
 
     //printf("MESSAGE CONTENTS: %s\n", in_msg + 2);
 
     if(!strcmp(token, "T"))
-        insert_trans(in_msg + 2);
+        insert_trans(to_process + 2);
     if(!strcmp(token, "P"))
-        insert_post(in_msg + 2);
+        insert_post(to_process + 2);
     if(!strcmp(token, "B"))
-        verify_foreign_block(in_msg + 2);
+        verify_foreign_block(to_process + 2);
     if(!strcmp(token, "N"))
         ;
     if(!strcmp(token, "L"))
@@ -176,24 +213,12 @@ void process_message(char* in_msg) {
 }
 void* send_node_msg(strli_node* item) {
 
-    printf("SENDING: %s", item->value);
-    char* toWhom = strtok(item->value,":::");
-    char* out_msg = strtok(NULL, ":::");
+    printf("Sending: %s", item->value);
+    char* toWhom = strtok(item->value,"#");
+    char* out_msg = strtok(NULL, "#");
 
     printf("toWHom: %s\n", toWhom);
     printf("out_msg: %s\n", out_msg);
-
-    /*
-    int sock = nn_socket (AF_SP, NN_PUSH);
-    assert (sock >= 0);
-    int timeout = 200;
-    assert (nn_setsockopt(sock, NN_PUSH, NN_SNDTIMEO, &timeout,sizeof(timeout)));
-    assert (nn_connect (sock, in_item->value) >= 0);
-    printf("Announcing to: %s, ", in_item->value);
-    int bytes = nn_send (sock, our_chain->last_block, strlen(our_chain->last_block), 0);
-    printf("Bytes sent: %d\n", bytes);
-    nn_shutdown(sock,0);*/
-
 
     return NULL;
 }
@@ -208,8 +233,8 @@ void* server() {
     assert (sock_in >= 0);
     assert (nn_bind (sock_in, our_ip) >= 0);
     int timeout = 200;
-    assert (nn_setsockopt (sock_in, NN_PULL, NN_RCVTIMEO,&timeout, sizeof (timeout)));
-    printf("SOCKET READY!\n");
+    assert (nn_setsockopt (sock_in, NN_PULL, NN_RCVTIMEO, &timeout, sizeof (timeout)));
+    printf("Socket Ready!\n");
 
     char buf[1000] = {0};
 
@@ -217,9 +242,9 @@ void* server() {
 
         //Receive
         memset(buf, 0, sizeof(buf));
-        int bytes = nn_recv (sock_in, buf, sizeof(buf), 0);
+        int bytes = nn_recv(sock_in, buf, sizeof(buf), 0);
         if(bytes > 0) {
-            printf("\nRECEIVED \"%s\"\n", buf);
+            printf("\nRecieved: \"%s\"\n", buf);
             process_message(buf);
         }
 
@@ -232,9 +257,9 @@ void* server() {
     return 0;
 }
 
+//Read configuration file
 int read_config() {
     FILE* config = fopen("node.cfg", "r");
-
     if(config == NULL) return 0;
 
     char buffer[120] = {0};
@@ -242,7 +267,6 @@ int read_config() {
         if(buffer[strlen(buffer) -1] == '\n') buffer[strlen(buffer) -1] = 0;
         strli_append(other_nodes, buffer);
     }
-
     fclose(config);
 
     return 0;
