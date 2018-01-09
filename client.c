@@ -10,10 +10,12 @@
 #include "client_queue.h"
 #include "nanomsg/include/nn.h"
 #include "nanomsg/include/pipeline.h"
+#include "linked_list_string.h"
 
 
 transaction_queue*  main_queue;
 pthread_t network_thread;
+strlist* other_nodes;
 
 
 void* send_new(c_transaction* in_trans) {
@@ -21,10 +23,25 @@ void* send_new(c_transaction* in_trans) {
 
         int sock_out = nn_socket (AF_SP, NN_PUSH);
         assert (sock_out >= 0);
-        assert (nn_connect (sock_out, "ipc:///tmp/pipeline_1.ipc") >= 0);
+        int timeout = 50;
+        assert (nn_setsockopt(sock_out, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
+        sleep(1);
+
+
         printf("\nSending: %s\n", in_trans->message);
-        int bytes = nn_send (sock_out, in_trans->message, strlen(in_trans->message), 0);
-        printf("Bytes sent: %d\n", bytes);
+        strli_node* current = other_nodes->head;
+
+        for(int i = 0; i < other_nodes->length; i++) {
+            int eid = nn_connect (sock_out, current->value); 
+            assert(eid >= 0);
+            printf("Announcing to: %s, ", current->value);
+            int bytes = nn_send (sock_out, in_trans->message, strlen(in_trans->message), 0);
+            printf("Bytes sent: %d\n", bytes);
+            current = current->next;
+            nn_shutdown(sock_out,eid);
+        }
+
+        printf("Done sending transaction!\nb-in-c>\n");
         in_trans->status = 1;
         //nn_shutdown(sock,0);
     }
@@ -52,7 +69,7 @@ void* check_network(){
         //4. Update transactions status
         queue_map(main_queue, update_status);
         //5. Wait short amount to prevent spamming
-        sleep(1);
+        sleep(2);
     }
 }
 
@@ -119,13 +136,30 @@ void post_transaction(char* input) {
     return;
 }
 
+//Read configuration file
+int read_config() {
+    FILE* config = fopen("node.cfg", "r");
+    if(config == NULL) return 0;
+
+    char buffer[120] = {0};
+    while (fgets(buffer, sizeof(buffer), config)) {
+        if(buffer[strlen(buffer) -1] == '\n') buffer[strlen(buffer) -1] = 0;
+        strli_append(other_nodes, buffer);
+    }
+    fclose(config);
+
+    return 0;
+}
+
 int main(void) {
     
     //Setup
     printf("Blockchain in C: Client v0.1 by DG\n'h' for help/commandlist\n");
     char buffer[120] = {0};
     main_queue = new_queue();
-    
+    other_nodes = create_strlist();
+    read_config();
+
     //Network thread
     pthread_create(&network_thread, NULL, check_network, NULL);
 

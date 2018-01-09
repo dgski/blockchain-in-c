@@ -112,7 +112,8 @@ int insert_post(const char* input) {
 }
 //Verify Foreign Block []
 void verify_foreign_block(const char* input) {
-    printf("Verifying Foreign Block: %s\n", input);
+    //printf("Verifying Foreign Block: %s\n", input);
+    printf("Verifying Foreign Block... ");
 
     char f_block[1000] = {0};
     strcpy(f_block, input);
@@ -120,38 +121,29 @@ void verify_foreign_block(const char* input) {
     char* index = strtok(f_block,".");
     char* time = strtok(NULL, ".");
     char* transactions = strtok(NULL, ".");
-    printf("transactions: %s\n", transactions);
     char* trans_size = strtok(NULL, ".");
     char* proof = strtok(NULL, ".");
-    printf("proof: %s\n", proof);
-
     char* hash = strtok(NULL, ".");
+    /*
     printf("recieved hash: %s\n", hash);
-    printf("our_last_hash: ");
-    for(int i = 0; i < 32; i++)
-        printf("%02x",our_chain->last_hash[i]);
-    printf("\n");
-
-
-    long the_proof;
-    sscanf (proof,"%020ld",&the_proof);
+    printf("our_last_hash: %s\n",our_chain->last_hash);
     printf("LONG FORM: %ld\n", the_proof);
     printf("the result: %d\n", valid_proof(our_chain->last_hash, the_proof));
-
     char guess[GUESS_SIZE] = {0};
     sprintf(guess, "%s%020ld",(char*)our_chain->last_hash, the_proof);
-
     unsigned char tester[32] = {0};
     aahash256(tester,guess);
     printf("generated hash: ");
     for(int i = 0; i < 32; i++)
         printf("%02x",tester[i]);
-    printf("\n");
+    printf("\n");*/
 
+    long the_proof;
+    sscanf(proof,"%020ld",&the_proof);
     
 
     if(valid_proof(our_chain->last_hash, the_proof)) {
-        printf("Block recieved is Valid.\n");
+        printf("Valid.\n");
 
         char posts[] = {};
         transaction rec_trans[20] = {0};
@@ -168,7 +160,7 @@ void verify_foreign_block(const char* input) {
         *beaten = 1; //Will stop mining current block
     }
     else
-        printf("Block recieved is invalid.\n");
+        printf("Invalid.\n");
 
 
     return;

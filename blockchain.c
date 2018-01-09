@@ -19,7 +19,8 @@ blockchain* new_chain() {
     in_chain->last_proof_of_work = 100;
     memset(in_chain->trans_list,0, sizeof(in_chain->trans_list));
     memset(in_chain->new_posts, 0, sizeof(in_chain->new_posts));
-    memcpy(in_chain->last_hash, hash_block(&in_chain->head->data),HASH_SIZE);
+    memcpy(in_chain->last_hash, hash_block(&in_chain->head->data),HASH_HEX_SIZE);
+    
     in_chain->trans_index = 0;
     in_chain->new_index = 1;
     char block[BLOCK_STR_SIZE];
@@ -60,10 +61,10 @@ blink* append_current_block(blockchain* in_chain, long in_proof) {
     memset(the_block->data.posts, 0, sizeof(the_block->data.posts));
     the_block->data.trans_list_length= in_chain->trans_index;
     the_block->data.proof = in_proof;
-    memcpy(the_block->data.previous_hash,in_chain->last_hash, HASH_SIZE);
+    memcpy(the_block->data.previous_hash,in_chain->last_hash, HASH_HEX_SIZE);
 
     //Register new block hash
-    memcpy(in_chain->last_hash, hash_block(&the_block->data), HASH_SIZE);
+    memcpy(in_chain->last_hash, hash_block(&the_block->data), HASH_HEX_SIZE);
 
     //Reset blockchain intake
     memset(in_chain->trans_list,0, sizeof(in_chain->trans_list));
@@ -91,10 +92,10 @@ blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int i
     memset(the_block->data.posts, 0, sizeof(the_block->data.posts));
     the_block->data.trans_list_length= trans_list_length;
     the_block->data.proof = proof;
-    memcpy(the_block->data.previous_hash,in_chain->last_hash, HASH_SIZE);
+    memcpy(the_block->data.previous_hash,in_chain->last_hash, HASH_HEX_SIZE);
 
     //Register new block hash
-    memcpy(in_chain->last_hash, hash_block(&the_block->data), HASH_SIZE);
+    memcpy(in_chain->last_hash, hash_block(&the_block->data), HASH_HEX_SIZE);
 
     //Reset blockchain intake
     memset(in_chain->trans_list,0, sizeof(in_chain->trans_list));
@@ -129,11 +130,12 @@ void print_block(blink* in_block, char separator)
     
     printf("PROOF: %ld\n",in_block->data.proof);
     printf("PREV HASH: ");
-
+    printf("%s\n", in_block->data.previous_hash);
+    /*
     for(int i = 0; i < 32; i++)
         printf("%02x",in_block->data.previous_hash[i]);
-        
     printf("\n");
+    */
     for(int i = 0; i < 77; i++)
         printf("%c", separator);
     printf("\n\n");
@@ -169,10 +171,13 @@ char* string_block(char* output, block* in_block) {
     strcat(block_string, buffer);
 
     //Add previous hash
+    strcat(block_string, in_block->previous_hash);
+
+    /*
     for(int i = 0; i < HASH_SIZE; i++) {
         sprintf(buffer,"%02x", in_block->previous_hash[i]);
         strcat(block_string, buffer);
-    }
+    }*/
 
     strcpy(output, block_string);
 
@@ -192,10 +197,10 @@ int extract_transactions(transaction* trans_array, char* in_trans) {
         pointer = strtok(NULL,"-");
         trans_strings[i++] = pointer;
     }
-
+    /*
     for(int i = 0; trans_strings[i] != 0; i++) {
         printf("TRANSACTION: %s\n", trans_strings[i]);
-    }
+    }*/
 
     char* sender;
     char* reciever;
@@ -203,11 +208,11 @@ int extract_transactions(transaction* trans_array, char* in_trans) {
 
     for(int i = 0; trans_strings[i] != 0; i++) {
         sender = strtok(trans_strings[i],":");
-        printf("sender: %s\n", sender);
+        //printf("sender: %s\n", sender);
         reciever = strtok(NULL, ":");
-        printf("reciever: %s\n", reciever);
+        //printf("reciever: %s\n", reciever);
         amount = strtok(NULL, ":");
-        printf("amount: %s\n", amount);
+        //printf("amount: %s\n", amount);
         strcpy(trans_array[i].sender, sender);
         strcpy(trans_array[i].recipient, reciever);
         trans_array[i].amount = atoi(amount);
@@ -216,18 +221,31 @@ int extract_transactions(transaction* trans_array, char* in_trans) {
     return 0;
 }
 
-unsigned char* hash_block(block* in_block) {
+char* hash_block(block* in_block) {
 
     char block_string[BLOCK_STR_SIZE];
     string_block(block_string, in_block);
 
-    unsigned char* hash_value =  malloc(32);
+    unsigned char* hash_value =  malloc(HASH_SIZE);
     hash256(hash_value, block_string);
 
-    return hash_value;
+    char* hash_hex = malloc(HASH_HEX_SIZE);
+    memset(hash_hex, 0, HASH_HEX_SIZE);
+
+    char buffer[3];
+    for(int i = 0; i < HASH_SIZE; i++) {
+        memset(buffer, 0, sizeof(buffer));
+        sprintf(buffer,"%02x", hash_value[i]);
+        strcat(hash_hex, buffer);
+    }
+
+    free(hash_value);
+
+
+    return hash_hex;
 }
 
-bool valid_proof(unsigned char* last_hash, long proof) {
+bool valid_proof(char* last_hash, long proof) {
 
     char guess[GUESS_SIZE] = {0};
     sprintf(guess, "%s%020ld",last_hash, proof);
@@ -238,7 +256,7 @@ bool valid_proof(unsigned char* last_hash, long proof) {
     return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' && (hash_value[3] > 60 && hash_value[3] < 127));
 }
 
-long proof_of_work(int* beaten, unsigned char* last_hash) {
+long proof_of_work(int* beaten, char* last_hash) {
 
     long proof = 0;
 
@@ -250,23 +268,12 @@ long proof_of_work(int* beaten, unsigned char* last_hash) {
             return -1;
         }
     }
-    
+    /*
     printf("OUR PROOF: %ld\n", proof);
-    printf("PREVIOUS BLOCK HASH: ");
-    for(int i = 0; i < 32; i++)
-        printf("%02x",last_hash[i]);
-    printf("\n");
     printf("CONFIRMATION: %d\n", valid_proof(last_hash, proof));
 
     char guess[GUESS_SIZE] = {0};
-    sprintf(guess, "%s%020ld",last_hash, proof);
-
-    unsigned char tester[32] = {0};
-    hash256(tester,guess);
-    printf("generated hash: ");
-    for(int i = 0; i < 32; i++)
-        printf("%02x",tester[i]);
-    printf("\n");
+    sprintf(guess, "%s%020ld",last_hash, proof);*/
 
     return proof;
 }
@@ -280,7 +287,7 @@ blink* blink_create()
     temp->data.time = time(NULL);
     temp->data.proof = 0;
     memset(temp->data.trans_list,0,sizeof(temp->data.trans_list));
-    memcpy(temp->data.previous_hash,"AGENESISBLOCK", HASH_SIZE);
+    memcpy(temp->data.previous_hash,"AGENESISBLOCK", HASH_HEX_SIZE);
     temp->next = NULL;
     return temp;
 }
