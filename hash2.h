@@ -8,7 +8,7 @@ void aahash256(unsigned char* output, const char* input) {
     SHA256((const unsigned char*)input, length, md);
     memcpy(output,md, 32);
 
-    //printf("sizeof result: %lu\n", sizeof(result));
+    //printf("sizeof result: %ld\n", sizeof(result));
 
     /*
     for(int i = 0; i < 32; i++) {

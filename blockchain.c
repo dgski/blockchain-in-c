@@ -87,7 +87,7 @@ blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int i
     //Add data
     the_block->data.index = index;
     the_block->data.time = in_time;
-    memcpy(the_block->data.trans_list,trans_list,68);
+    memcpy(the_block->data.trans_list,trans_list,sizeof(the_block->data.trans_list));
     memset(the_block->data.posts, 0, sizeof(the_block->data.posts));
     the_block->data.trans_list_length= trans_list_length;
     the_block->data.proof = proof;
@@ -179,24 +179,39 @@ char* string_block(char* output, block* in_block) {
     return output;
 }
 
+
+
 int extract_transactions(transaction* trans_array, char* in_trans) {
     
-    
-    printf("%s\n", in_trans);
-    char* sender = strtok(in_trans,":");
-    printf("sender: %s\n", sender);
-    char* reciever = strtok(NULL, ":");
-    printf("reciever: %s\n", reciever);
-    char* amount = strtok(NULL, ":");
-    printf("amount: %s\n", amount);
+    char* trans_strings[20] = {0};
 
+    char* pointer = strtok(in_trans,"-");
+    trans_strings[0] = pointer;
+    int i = 1;
+    while(pointer != NULL) {
+        pointer = strtok(NULL,"-");
+        trans_strings[i++] = pointer;
+    }
 
-    strcpy(trans_array[0].sender, sender);
-    strcpy(trans_array[0].recipient, reciever);
-    trans_array[0].amount = atoi(amount);
+    for(int i = 0; trans_strings[i] != 0; i++) {
+        printf("TRANSACTION: %s\n", trans_strings[i]);
+    }
 
+    char* sender;
+    char* reciever;
+    char* amount;
 
-
+    for(int i = 0; trans_strings[i] != 0; i++) {
+        sender = strtok(trans_strings[i],":");
+        printf("sender: %s\n", sender);
+        reciever = strtok(NULL, ":");
+        printf("reciever: %s\n", reciever);
+        amount = strtok(NULL, ":");
+        printf("amount: %s\n", amount);
+        strcpy(trans_array[i].sender, sender);
+        strcpy(trans_array[i].recipient, reciever);
+        trans_array[i].amount = atoi(amount);
+    }
 
     return 0;
 }

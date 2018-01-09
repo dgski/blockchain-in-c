@@ -139,7 +139,7 @@ void verify_foreign_block(const char* input) {
     printf("the result: %d\n", valid_proof(our_chain->last_hash, the_proof));
 
     char guess[GUESS_SIZE] = {0};
-    sprintf(guess, "%s%020ld",our_chain->last_hash, the_proof);
+    sprintf(guess, "%s%020ld",(char*)our_chain->last_hash, the_proof);
 
     unsigned char tester[32] = {0};
     aahash256(tester,guess);

@@ -30,7 +30,7 @@ int main(void) {
     long proof = 16876997;
 
     char guess[120] = {0};
-    sprintf(guess, "%s%020lu",last_hash, proof);
+    sprintf(guess, "%s%020ld",last_hash, proof);
 
     unsigned char tester[32] = {0};
     hash256(tester,guess);
