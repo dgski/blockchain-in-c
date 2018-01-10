@@ -31,9 +31,10 @@ blockchain* new_chain() {
 }
 
 //Add transaction to transaction_list
-void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, int in_amount) {
+void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, int in_amount, char* in_signature) {
 
-    //printf("NEW TRANSACTION!\n");
+    printf("NEW TRANSACTION!\n");
+    printf("recipient: %s\n", in_recipient);
     //Transactions full
 
     if(in_chain->trans_index > 19)
@@ -42,6 +43,7 @@ void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, 
     int index = in_chain->trans_index++;
     strcpy(in_chain->trans_list[index].sender, in_sender);
     strcpy(in_chain->trans_list[index].recipient, in_recipient);
+    strcpy(in_chain->trans_list[index].signature, in_signature);
     in_chain->trans_list[index].amount = in_amount;
 
     //printf("TRANCTION DONE\n");
@@ -126,7 +128,7 @@ void print_block(blink* in_block, char separator)
     printf("TRANSACTIONS:\n");
 
     for(int i = 0; i < in_block->data.trans_list_length; i++)
-        printf("%s : %s - %d\n", in_block->data.trans_list[i].sender, in_block->data.trans_list[i].recipient, in_block->data.trans_list[i].amount);
+        printf("%.10s : %.10s - %d\n", in_block->data.trans_list[i].sender, in_block->data.trans_list[i].recipient, in_block->data.trans_list[i].amount);
     
     printf("PROOF: %ld\n",in_block->data.proof);
     printf("PREV HASH: ");
@@ -145,7 +147,7 @@ void print_block(blink* in_block, char separator)
 char* string_block(char* output, block* in_block) {
 
     char block_string[BLOCK_STR_SIZE];
-    char buffer[120];
+    char buffer[1100];
 
     //Add index and time
     sprintf(block_string,"%010i.%010i.", in_block->index, in_block->time);

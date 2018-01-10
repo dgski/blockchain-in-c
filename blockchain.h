@@ -5,7 +5,7 @@
 #define TRANS_LIST_SIZE 20
 #define HASH_SIZE 32
 #define HASH_HEX_SIZE 65
-#define USER_ADDRESS_SIZE 32
+#define PUBLIC_ADDRESS_SIZE 500
 #define GUESS_SIZE 200
 
 #define ANSI_COLOR_GREEN   "\x1b[32m"
@@ -18,9 +18,10 @@
 
 //Transaction structure
 typedef struct transaction {
-    char sender[USER_ADDRESS_SIZE];
-    char recipient[USER_ADDRESS_SIZE];
+    char sender[PUBLIC_ADDRESS_SIZE];
+    char recipient[PUBLIC_ADDRESS_SIZE];
     int amount;
+    char signature[PUBLIC_ADDRESS_SIZE];
 } transaction;
 
 //Block Structure
@@ -54,7 +55,7 @@ typedef struct blockchain {
 
 //Chain functions
 blockchain* new_chain();
-void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, int in_amount);
+void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, int in_amount,char* in_signature);
 blink* append_current_block(blockchain* in_chain, long in_proof);
 blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int in_time, transaction* trans_list,
  char* posts, unsigned int trans_list_length, long proof);

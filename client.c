@@ -7,15 +7,25 @@
 #include <unistd.h>
 #include <assert.h>
 
+#include <openssl/rsa.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
+
+
 #include "client_queue.h"
 #include "nanomsg/include/nn.h"
 #include "nanomsg/include/pipeline.h"
 #include "linked_list_string.h"
+#include "hash.h"
 
 
 transaction_queue*  main_queue;
 pthread_t network_thread;
 strlist* other_nodes;
+
+RSA* your_keys;
+char* pub_key;
+char* pri_key;
 
 
 void* send_new(c_transaction* in_trans) {
@@ -87,14 +97,16 @@ void quit_program() {
     exit(0);
 }
 
-bool val_trans_format(char* sender, char* recipient, char* amount) {
+//bool val_trans_format(char* sender, char* recipient, char* amount) {
+bool val_trans_format(char* recipient, char* amount) {
 
+    /*
     for(int i = 0; i < strlen(sender); i++) {
         if(sender[i] == ':') {
             printf("You cannot use ':' in sender's or reciever's names.\n");
             return false;
         }
-    }
+    }*/
     for(int i = 0; i < strlen(recipient); i++) {
         if(recipient[i] == ':') {
             printf("You cannot use ':' in senders or recipients names.\n");
@@ -110,27 +122,93 @@ bool val_trans_format(char* sender, char* recipient, char* amount) {
     return true;
 }
 
+//Hash and sign the given message
+int message_signature(char* output, char* message, RSA* keypair) {
+
+    //Hash the message
+    unsigned char data[32];
+    hash256(data,message);
+
+    //Prepare signature buffer
+    unsigned char* sig = malloc(RSA_size(keypair));
+    unsigned int sig_len = 0;
+    if(sig == NULL) return 0;
+
+    //Create signature
+    int rc = RSA_sign(NID_sha256,data,32,sig, &sig_len,keypair);
+    if(rc != 1) return 0;
+
+    //convert to asci
+    for(int i = 0; i < 256; i++) {
+        char buf[3] = {0};
+        sprintf(buf,"%02x", sig[i]);
+        strcat(output,buf);
+    }
+
+    free(sig);
+    printf("ASCI SIG:\n%s\n", output);
+
+
+    return 1;
+}
+
+
 void post_transaction(char* input) {
 
-    char sender[32];
+    //char sender[32];
     char recipient[32];
     char amount[32];
 
-    sscanf(input, "%*s %s %s %s", sender, recipient, amount);
+    //sscanf(input, "%*s %s %s %s", sender, recipient, amount);
+    sscanf(input, "%*s %s %s", recipient, amount);
 
-    if(!val_trans_format(sender, recipient, amount))
+
+    //if(!val_trans_format(sender, recipient, amount))
+    //    return;
+    
+    if(!val_trans_format(recipient, amount))
         return;
 
-    char out_msg[96];
+    char out_msg[2000] = {0};
     char seperator[] = " ";
     strcpy(out_msg, "T ");
-    strcat(out_msg, sender);
+
+    //Send Hex public key
+    //char* start = pub_key + 31;
+    char asci_pub_key[500] = {0};
+    /*
+    char* asci_tracker = asci_pub_key;
+    for(int i = 0; i < 5; i++) {
+        memcpy(asci_tracker,start,64);
+        start = start + 65;
+        asci_tracker = asci_tracker + 64;
+    }*/
+    int i = 31;
+    int x = 0;
+    while (pub_key[i] != '-') {
+        if(pub_key[i] != '\n') asci_pub_key[x++] = pub_key[i];
+        i++;
+    }
+
+    printf("length: %lu\n", strlen(asci_pub_key));
+
+
+    printf("PUBLIC KEY STRIPPED: %s\n", asci_pub_key);
+
+
+
+    strcat(out_msg, asci_pub_key);
     strcat(out_msg, seperator);
+    
     strcat(out_msg, recipient);
     strcat(out_msg, seperator);
     strcat(out_msg, amount);
+    char sig[513] = {0};
+    message_signature(sig,out_msg,your_keys);
+    strcat(out_msg, seperator);
+    strcat(out_msg,sig);
 
-    c_transaction* temp = new_trans(0,sender, recipient, atoi(amount), out_msg);
+    c_transaction* temp = new_trans(0,asci_pub_key, recipient, atoi(amount), out_msg);
     add_to_queue(main_queue, temp);
 
     return;
@@ -151,6 +229,42 @@ int read_config() {
     return 0;
 }
 
+
+int create_keys() {
+
+//Create keypair
+    your_keys = RSA_generate_key(2048,3,NULL,NULL);
+
+    //Create structures to seperate keys
+    BIO *pri = BIO_new(BIO_s_mem());
+    BIO *pub = BIO_new(BIO_s_mem());
+
+    //Extract data out of RSA structure 
+    PEM_write_bio_RSAPrivateKey(pri, your_keys, NULL, NULL, 0, NULL, NULL);
+    PEM_write_bio_RSAPublicKey(pub, your_keys);
+
+    //Get length of data
+    size_t pri_len = BIO_pending(pri);
+    size_t pub_len = BIO_pending(pub);
+
+    //Prepare char buffers for keys
+    pri_key = malloc(pri_len + 1);
+    pub_key = malloc(pub_len + 1);
+
+    //Read into buffers
+    BIO_read(pri,pri_key,pri_len);
+    BIO_read(pub, pub_key,pub_len);
+
+    //Terminate strings
+    pri_key[pri_len] = '\0';
+    pub_key[pub_len] = '\0';
+
+    return 1;
+
+}
+
+
+
 int main(void) {
     
     //Setup
@@ -159,6 +273,11 @@ int main(void) {
     main_queue = new_queue();
     other_nodes = create_strlist();
     read_config();
+
+    //Create Keys
+    create_keys();
+    printf("\n%s\n%s\n", pri_key, pub_key);
+
 
     //Network thread
     pthread_create(&network_thread, NULL, check_network, NULL);

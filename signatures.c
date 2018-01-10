@@ -38,6 +38,9 @@ int main(int argc, char* argv[]) {
     pri_key[pri_len] = '\0';
     pub_key[pub_len] = '\0';
 
+    printf("public length: %zu\n", pub_len);
+    printf("private length: %zu\n", pri_len);
+
     printf("\n%s\n%s\n", pri_key, pub_key);
 
 

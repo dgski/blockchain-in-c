@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <openssl/rsa.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
 
 #include "nanomsg/include/nn.h"
 #include "nanomsg/include/pipeline.h"
@@ -66,11 +69,16 @@ int mine() {
             printf("\nMINED: %.4f min(s)\n", (time_2 - time_1)/60.0);
 
             our_chain->last_proof_of_work = result;
-            new_transaction(our_chain,node_name,node_name, 2);
+            new_transaction(our_chain,node_name,node_name, 2, "hello");
+            printf("HELLO\n");
             node_earnings += 2;
+            printf("HELLO\n");
 
             blink* a_block = append_current_block(our_chain, our_chain->last_proof_of_work);
+             printf("HELLO\n");
             print_block(a_block,'-');
+            printf("HELLO\n");
+
             printf(ANSI_COLOR_RESET);
             //char block_buffer[BLOCK_STR_SIZE];
             //string_block(block_buffer, &a_block->data);
@@ -87,16 +95,124 @@ int mine() {
 }
 
 
+bool verify_transaction(const char* input, char* sender, char* recipient, char* amount, char* signature) {
+    
+    char data[1500] = {0};
+
+    strcat(data, sender);
+    strcat(data, " ");
+
+    strcat(data, recipient);
+    strcat(data," ");
+
+    //char buffer[20] = {0};
+    //sprintf(buffer, "%d", amount);
+    strcat(data, amount);
+
+    printf("MESSAGE: %s\n", data);
+
+    unsigned char* hash_value =  malloc(HASH_SIZE);
+    aahash256(hash_value,data);
+
+    unsigned char sig[256];
+    char* pointer = signature;
+    //extract sig from hex asci
+    for(int i = 0; i < 256; i++) {
+        unsigned int value;
+        sscanf(pointer, "%02x", &value);
+        printf("%02x", value);
+        pointer = pointer + 2;
+        sig[i] = value;
+    }
+    printf("\n");
+
+    char our_key[1000] = {0};
+    char* new_key_point = our_key;
+    char* send_pointer = sender;
+
+    memcpy(new_key_point,send_pointer,64);
+    new_key_point = new_key_point + 64;
+    send_pointer = send_pointer + 64;
+    *new_key_point++ = '\n';
+
+    memcpy(new_key_point,send_pointer,64);
+    new_key_point = new_key_point + 64;
+    send_pointer = send_pointer + 64;
+    *new_key_point++ = '\n';
+
+    memcpy(new_key_point,send_pointer,64);
+    new_key_point = new_key_point + 64;
+    send_pointer = send_pointer + 64;
+    *new_key_point++ = '\n';
+
+    memcpy(new_key_point,send_pointer,64);
+    new_key_point = new_key_point + 64;
+    send_pointer = send_pointer + 64;
+    *new_key_point++ = '\n';
+
+    memcpy(new_key_point,send_pointer,64);
+    new_key_point = new_key_point + 64;
+    send_pointer = send_pointer + 64;
+    *new_key_point++ = '\n';
+
+    memcpy(new_key_point,send_pointer,41);
+
+
+    char final_key[1000];
+    sprintf(final_key,"-----BEGIN RSA PUBLIC KEY-----\n%s\n-----END RSA PUBLIC KEY-----\n", our_key);
+
+    printf("%s", final_key);
+
+
+
+
+    char* pub_key = final_key;
+
+    printf("size of key: %lu\n", strlen(pub_key) + 1);
+    printf("%s\n", pub_key);
+
+    BIO *bio = BIO_new_mem_buf((void*)pub_key, strlen(pub_key));
+    RSA *rsa_pub = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
+
+    int rc = RSA_verify(NID_sha256, hash_value,32,sig,256,rsa_pub);
+    if(rc != 1) printf("ERROR VERIFYING!\n"); else printf("VERIFIED!\n");
+
+
+    free(hash_value);
+
+
+    return false;
+}
+
+
 //Insert transaction [sender receiver amount]
-int insert_trans(const char* input) {
+int insert_trans(char* input) {
 
     
     printf("Inserting Transaction!\n");
-    char sender[32] = {0};
-    char recipient[32] = {0};
+    /*
+    char sender[500] = {0};
+    char recipient[500];
     int amount;
-    sscanf(input, "%s %s %d", sender, recipient, &amount);
-    new_transaction(our_chain,sender,recipient,amount);
+    char signature[500] = {0};
+    sscanf(input, "%s %s %d %s", sender, recipient, &amount, signature);
+    */
+
+    char* sender = strtok(input," ");
+    char* recipient = strtok(NULL, " ");
+    char* amount = strtok(NULL, " ");
+    char* signature = strtok(NULL, " ");
+
+    //Check if user has enough in quick ledger
+    //Checking quickledger....
+
+    //Check if transaction is signed
+    if(!verify_transaction(input,sender, recipient, amount, signature))
+        return -1;
+
+    int amount2;
+
+    new_transaction(our_chain,sender,recipient,amount2,signature);
 
     return 0;
 }

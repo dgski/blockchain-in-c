@@ -5,10 +5,10 @@
 //Client-side transaction structure
 typedef struct c_transaction {
     unsigned int id;
-    char sender[32];
-    char recipient[32];
+    char sender[500];
+    char recipient[500];
     int amount;
-    char message[96 + 1];
+    char message[2000];
     int status; // 0: Created, 1: Sent, 2: Posted
     struct c_transaction* next;
 } c_transaction;
