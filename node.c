@@ -81,7 +81,7 @@ int mine() {
             printf("Abandoning our in-progress block.\n");
             *beaten = 0;
         }
-        printf("\nTotal Node Earnings: %d notes\n", node_earnings);
+        printf("\nTotal Node Earnings: %d noins\n", node_earnings);
 
     }
 }
@@ -195,7 +195,7 @@ void process_message(const char* in_msg) {
     if(!strcmp(token, "B"))
         verify_foreign_block(to_process + 2);
     if(!strcmp(token, "N"))
-        ;
+        register_new_node(to_process + 2);
     if(!strcmp(token, "L"))
         ;
     if(!strcmp(token, "C"))
