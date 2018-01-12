@@ -8,6 +8,8 @@
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
+#include <signal.h>
+
 
 #include "nanomsg/include/nn.h"
 #include "nanomsg/include/pipeline.h"
@@ -327,7 +329,7 @@ void* server() {
     char buf[1000] = {0};
 
     while(true) {
-
+        
         //Receive
         memset(buf, 0, sizeof(buf));
         int bytes = nn_recv(sock_in, buf, sizeof(buf), 0);
@@ -360,11 +362,23 @@ int read_config() {
     return 0;
 }
 
+void graceful_shutdown(int dummy) {
+    printf("\nCommencing graceful shutdown!\n");
+    
+    strli_discard(outbound_msgs);
+    strli_discard(other_nodes);
+    free(beaten);
+    exit(0);
+}
+
 
 
 //Main function
 int main(int argc, char* argv[]) {
     
+    //Ctrl-C Handler
+    signal(SIGINT, graceful_shutdown);
+
     //Create blockchain
     our_chain = new_chain();
 
@@ -390,11 +404,13 @@ int main(int argc, char* argv[]) {
         strcpy(our_ip, argv[1]);
     
     //Create outbound message list & add our IP to be sent to all nodes
-    strlist* outbound_msgs = create_strlist();
+    
+    outbound_msgs = create_strlist();
     char ip_broadcast[120] = {0};
     strcpy(ip_broadcast, "all:::N ");
     strcat(ip_broadcast, our_ip);
     strli_append(outbound_msgs, ip_broadcast);
+
 
     //Reset node earnings
     node_earnings = 0;

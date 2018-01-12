@@ -18,8 +18,8 @@ strlist* create_strlist()
 strli_node* strli_create_node(char* input_string)
 {
     strli_node* temp = malloc(sizeof(strli_node));
-    temp->value = malloc(strlen(input_string));
-    memset(temp->value, 0, strlen(temp->value));
+    temp->value = malloc(strlen(input_string) + 1);
+    memset(temp->value, 0, strlen(input_string));
     strcpy(temp->value, input_string);
     temp->next = NULL;
     temp->prev = NULL;
@@ -154,7 +154,12 @@ void strli_print(strlist* in_list)
 
 // Discard the entire string list (free memory);
 void strli_discard(strlist* in_list)
-{
+{   
+    if(in_list == NULL) {
+        return;
+    }
+
+    //0 sized element list
     if(in_list->head == NULL) {
         free(in_list);
         return;
@@ -170,16 +175,16 @@ void strli_discard(strlist* in_list)
     }
     
     strli_node* temp = in_list->head;
-    temp = temp->next;
 
-    while(in_list->head != NULL)
-    {
-        free(in_list->head->value);
-        free(in_list->head);
-        in_list->head = temp;
-        if(temp != NULL)
-            temp = temp->next;
+    while(temp != NULL)
+    {   
+        strli_node* to_free = temp;
+        temp = temp->next;
+        free(to_free->value);
+        free(to_free);
     }
+
+    free(in_list);
 }
 //Search string list for string
 strli_node* strli_search(strlist* in_list, strli_node* head, char* input_value)

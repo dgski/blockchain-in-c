@@ -14,10 +14,13 @@ blockchain* new_chain() {
     in_chain->head = blink_create();
     in_chain->head->data.time = 0;
     in_chain->head->data.proof = 100;
+    in_chain->head->data.trans_list_length = 0;
     memset(in_chain->head->data.trans_list,0, sizeof(in_chain->head->data.trans_list));
+    memset(in_chain->head->data.posts,0, sizeof(in_chain->head->data.posts));
+
 
     in_chain->last_proof_of_work = 100;
-    memset(in_chain->trans_list,0, sizeof(in_chain->trans_list));
+    memset(in_chain->trans_list, 0, sizeof(in_chain->trans_list));
     memset(in_chain->new_posts, 0, sizeof(in_chain->new_posts));
     memcpy(in_chain->last_hash, hash_block(&in_chain->head->data),HASH_HEX_SIZE);
     
@@ -57,7 +60,7 @@ blink* append_current_block(blockchain* in_chain, long in_proof) {
     the_block->data.index = in_chain->new_index++;
     the_block->data.time = time(NULL);
     memcpy(the_block->data.trans_list,in_chain->trans_list, sizeof(in_chain->trans_list));
-    memset(the_block->data.posts, 0, sizeof(the_block->data.posts));
+    memcpy(the_block->data.posts, in_chain->new_posts, sizeof(the_block->data.posts));
     the_block->data.trans_list_length= in_chain->trans_index;
     the_block->data.proof = in_proof;
     memcpy(the_block->data.previous_hash,in_chain->last_hash, HASH_HEX_SIZE);
@@ -88,7 +91,7 @@ blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int i
     the_block->data.index = index;
     the_block->data.time = in_time;
     memcpy(the_block->data.trans_list,trans_list,sizeof(the_block->data.trans_list));
-    memset(the_block->data.posts, 0, sizeof(the_block->data.posts));
+    memcpy(the_block->data.posts, in_chain->new_posts, sizeof(the_block->data.posts));
     the_block->data.trans_list_length= trans_list_length;
     the_block->data.proof = proof;
     memcpy(the_block->data.previous_hash,in_chain->last_hash, HASH_HEX_SIZE);
@@ -143,14 +146,14 @@ void print_block(blink* in_block, char separator)
 //Stringifies of the current block
 char* string_block(char* output, block* in_block) {
 
-    char block_string[BLOCK_STR_SIZE];
-    char buffer[1100];
+    char block_string[BLOCK_STR_SIZE] = {0};
+    char buffer[1100] = {0};
 
     //Add index and time
     sprintf(block_string,"%010i.%010i.", in_block->index, in_block->time);
 
     //Add posts
-    strcat(block_string, in_block->posts);
+    if(strlen(in_block->posts) > 0) strcat(block_string, in_block->posts);
 
     //Add transactions
     for(int i = 0; i < in_block->trans_list_length; i++) {
@@ -286,7 +289,7 @@ blink* blink_create()
     temp->data.time = time(NULL);
     temp->data.proof = 0;
     memset(temp->data.trans_list,0,sizeof(temp->data.trans_list));
-    memcpy(temp->data.previous_hash,"AGENESISBLOCK", HASH_HEX_SIZE);
+    memset(temp->data.previous_hash, 0, HASH_HEX_SIZE);
     temp->next = NULL;
     return temp;
 }
