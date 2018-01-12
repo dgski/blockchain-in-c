@@ -125,9 +125,18 @@ bool val_trans_format(char* recipient, char* amount) {
 //Hash and sign the given message
 int message_signature(char* output, char* message, RSA* keypair) {
 
+
+
+
     //Hash the message
     unsigned char data[32];
     hash256(data,message);
+
+    //Print the hash
+    printf("HASHVALUE:\n");
+    for(int i= 0; i < 32; i++)
+        printf("%02x", data[i]);
+    printf("\n");
 
     //Prepare signature buffer
     unsigned char* sig = malloc(RSA_size(keypair));
@@ -147,6 +156,29 @@ int message_signature(char* output, char* message, RSA* keypair) {
 
     free(sig);
     printf("ASCI SIG:\n%s\n", output);
+
+    //Verify
+    unsigned char signature[256];
+    char* pointer = output;
+    //extract sig from hex asci
+    for(int i = 0; i < 256; i++) {
+        unsigned int value;
+        sscanf(pointer, "%02x", &value);
+        //printf("%02x", value);
+        pointer = pointer + 2;
+        signature[i] = value;
+    }
+    printf("\n");
+
+    printf("size of key: %lu\n", strlen(pub_key) + 1);
+    printf("%s\n", pub_key);
+
+    BIO *bio = BIO_new_mem_buf((void*)pub_key, strlen(pub_key));
+    RSA *rsa_pub = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
+
+    rc = RSA_verify(NID_sha256, data,32,signature,256,rsa_pub);
+    if(rc != 1) printf("ERROR VERIFYING!\n"); else printf("VERIFIED!\n");
+
 
 
     return 1;
@@ -176,13 +208,6 @@ void post_transaction(char* input) {
     //Send Hex public key
     //char* start = pub_key + 31;
     char asci_pub_key[500] = {0};
-    /*
-    char* asci_tracker = asci_pub_key;
-    for(int i = 0; i < 5; i++) {
-        memcpy(asci_tracker,start,64);
-        start = start + 65;
-        asci_tracker = asci_tracker + 64;
-    }*/
     int i = 31;
     int x = 0;
     while (pub_key[i] != '-') {
@@ -276,7 +301,10 @@ int main(void) {
 
     //Create Keys
     create_keys();
-    printf("\n%s\n%s\n", pri_key, pub_key);
+    printf("%s%s", pri_key, pub_key);
+
+    char buffer2[500];
+    strcpy(buffer2, pub_key);
 
 
     //Network thread

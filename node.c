@@ -99,6 +99,8 @@ bool verify_transaction(const char* input, char* sender, char* recipient, char* 
     
     char data[1500] = {0};
 
+    strcat(data, "T ");
+
     strcat(data, sender);
     strcat(data, " ");
 
@@ -111,8 +113,12 @@ bool verify_transaction(const char* input, char* sender, char* recipient, char* 
 
     printf("MESSAGE: %s\n", data);
 
-    unsigned char* hash_value =  malloc(HASH_SIZE);
+    unsigned char hash_value[32];
     aahash256(hash_value,data);
+    printf("HASHVALUE:\n");
+    for(int i= 0; i < 32; i++)
+        printf("%02x", hash_value[i]);
+    printf("\n");
 
     unsigned char sig[256];
     char* pointer = signature;
@@ -120,45 +126,27 @@ bool verify_transaction(const char* input, char* sender, char* recipient, char* 
     for(int i = 0; i < 256; i++) {
         unsigned int value;
         sscanf(pointer, "%02x", &value);
-        printf("%02x", value);
         pointer = pointer + 2;
         sig[i] = value;
     }
     printf("\n");
 
+    printf("\n\nASCI SIG:\n%s\n\n", signature);
+
     char our_key[1000] = {0};
     char* new_key_point = our_key;
     char* send_pointer = sender;
 
-    memcpy(new_key_point,send_pointer,64);
-    new_key_point = new_key_point + 64;
-    send_pointer = send_pointer + 64;
-    *new_key_point++ = '\n';
-
-    memcpy(new_key_point,send_pointer,64);
-    new_key_point = new_key_point + 64;
-    send_pointer = send_pointer + 64;
-    *new_key_point++ = '\n';
-
-    memcpy(new_key_point,send_pointer,64);
-    new_key_point = new_key_point + 64;
-    send_pointer = send_pointer + 64;
-    *new_key_point++ = '\n';
-
-    memcpy(new_key_point,send_pointer,64);
-    new_key_point = new_key_point + 64;
-    send_pointer = send_pointer + 64;
-    *new_key_point++ = '\n';
-
-    memcpy(new_key_point,send_pointer,64);
-    new_key_point = new_key_point + 64;
-    send_pointer = send_pointer + 64;
-    *new_key_point++ = '\n';
+    for(int i = 0; i < 5; i++) {
+        memcpy(new_key_point,send_pointer,64);
+        new_key_point = new_key_point + 64;
+        send_pointer = send_pointer + 64;
+        *new_key_point++ = '\n';
+    }
 
     memcpy(new_key_point,send_pointer,41);
 
-
-    char final_key[1000];
+    char final_key[427] = {0};
     sprintf(final_key,"-----BEGIN RSA PUBLIC KEY-----\n%s\n-----END RSA PUBLIC KEY-----\n", our_key);
 
     printf("%s", final_key);
@@ -169,16 +157,14 @@ bool verify_transaction(const char* input, char* sender, char* recipient, char* 
     char* pub_key = final_key;
 
     printf("size of key: %lu\n", strlen(pub_key) + 1);
-    printf("%s\n", pub_key);
+    printf("\n%s\n", pub_key);
 
     BIO *bio = BIO_new_mem_buf((void*)pub_key, strlen(pub_key));
     RSA *rsa_pub = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
 
     int rc = RSA_verify(NID_sha256, hash_value,32,sig,256,rsa_pub);
+    printf("VERIFY RETURN: %d\n", rc);
     if(rc != 1) printf("ERROR VERIFYING!\n"); else printf("VERIFIED!\n");
-
-
-    free(hash_value);
 
 
     return false;

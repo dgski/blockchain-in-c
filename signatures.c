@@ -75,7 +75,7 @@ int main(int argc, char* argv[]) {
     printf("\n");
 
     free(sig);
-    printf("ASCI SIG:\n%s\n", asci_sig);
+    printf("ASCI SIG:%s\n", asci_sig);
     ////////////////////////////////////////////////////////////////////////////////////
     //verify the data
     ////////////////////////////////////////////////////////////////////////////////////
@@ -93,9 +93,8 @@ int main(int argc, char* argv[]) {
         pointer = pointer + 2;
         signature[i] = value;
     }
-    printf("\n");
 
-    printf("size of key: %lu\n", strlen(pub_key) + 1);
+    printf("\nsize of key: %lu\n", strlen(pub_key) + 1);
     printf("%s\n", pub_key);
 
     BIO *bio = BIO_new_mem_buf((void*)pub_key, strlen(pub_key));
