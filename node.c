@@ -70,14 +70,9 @@ int mine() {
 
             our_chain->last_proof_of_work = result;
             new_transaction(our_chain,node_name,node_name, 2, "hello");
-            printf("HELLO\n");
             node_earnings += 2;
-            printf("HELLO\n");
-
             blink* a_block = append_current_block(our_chain, our_chain->last_proof_of_work);
-             printf("HELLO\n");
             print_block(a_block,'-');
-            printf("HELLO\n");
 
             printf(ANSI_COLOR_RESET);
             //char block_buffer[BLOCK_STR_SIZE];
@@ -99,8 +94,6 @@ bool verify_transaction(const char* input, char* sender, char* recipient, char* 
     
     char data[1500] = {0};
 
-    strcat(data, "T ");
-
     strcat(data, sender);
     strcat(data, " ");
 
@@ -111,14 +104,14 @@ bool verify_transaction(const char* input, char* sender, char* recipient, char* 
     //sprintf(buffer, "%d", amount);
     strcat(data, amount);
 
-    printf("MESSAGE: %s\n", data);
+    //printf("MESSAGE: %s\n", data);
 
     unsigned char hash_value[32];
     aahash256(hash_value,data);
-    printf("HASHVALUE:\n");
+    /*printf("HASHVALUE:\n");
     for(int i= 0; i < 32; i++)
         printf("%02x", hash_value[i]);
-    printf("\n");
+    printf("\n");*/
 
     unsigned char sig[256];
     char* pointer = signature;
@@ -129,9 +122,9 @@ bool verify_transaction(const char* input, char* sender, char* recipient, char* 
         pointer = pointer + 2;
         sig[i] = value;
     }
-    printf("\n");
+    //printf("\n");
 
-    printf("\n\nASCI SIG:\n%s\n\n", signature);
+    //printf("\n\nASCI SIG:\n%s\n\n", signature);
 
     char our_key[1000] = {0};
     char* new_key_point = our_key;
@@ -149,25 +142,24 @@ bool verify_transaction(const char* input, char* sender, char* recipient, char* 
     char final_key[427] = {0};
     sprintf(final_key,"-----BEGIN RSA PUBLIC KEY-----\n%s\n-----END RSA PUBLIC KEY-----\n", our_key);
 
-    printf("%s", final_key);
+    //printf("%s", final_key);
 
 
 
 
     char* pub_key = final_key;
 
-    printf("size of key: %lu\n", strlen(pub_key) + 1);
-    printf("\n%s\n", pub_key);
+    //printf("size of key: %lu\n", strlen(pub_key) + 1);
+    //printf("\n%s\n", pub_key);
 
     BIO *bio = BIO_new_mem_buf((void*)pub_key, strlen(pub_key));
     RSA *rsa_pub = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
 
     int rc = RSA_verify(NID_sha256, hash_value,32,sig,256,rsa_pub);
-    printf("VERIFY RETURN: %d\n", rc);
-    if(rc != 1) printf("ERROR VERIFYING!\n"); else printf("VERIFIED!\n");
+    //printf("VERIFY RETURN: %d\n", rc);
+    if(rc != 1) printf("Invalid."); else printf("Valid.");
 
-
-    return false;
+    if(rc) return true; else return false;
 }
 
 
@@ -175,7 +167,7 @@ bool verify_transaction(const char* input, char* sender, char* recipient, char* 
 int insert_trans(char* input) {
 
     
-    printf("Inserting Transaction!\n");
+    printf("\nVerifying Transaction...");
     /*
     char sender[500] = {0};
     char recipient[500];
@@ -197,6 +189,8 @@ int insert_trans(char* input) {
         return -1;
 
     int amount2;
+    sscanf(amount,"%d",&amount2);
+    printf("\nInserting.\n");
 
     new_transaction(our_chain,sender,recipient,amount2,signature);
 

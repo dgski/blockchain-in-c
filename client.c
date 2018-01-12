@@ -130,7 +130,7 @@ int message_signature(char* output, char* message, RSA* keypair) {
 
     //Hash the message
     unsigned char data[32];
-    hash256(data,message);
+    hash256(data,message + 2);
 
     //Print the hash
     printf("HASHVALUE:\n");

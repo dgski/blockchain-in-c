@@ -33,10 +33,7 @@ blockchain* new_chain() {
 //Add transaction to transaction_list
 void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, int in_amount, char* in_signature) {
 
-    printf("NEW TRANSACTION!\n");
-    printf("recipient: %s\n", in_recipient);
     //Transactions full
-
     if(in_chain->trans_index > 19)
         return;
 
