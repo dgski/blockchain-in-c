@@ -184,6 +184,67 @@ int message_signature(char* output, char* message, RSA* keypair) {
     return 1;
 }
 
+void post_music(char* input) {
+
+    char note[3] = {0};
+
+    sscanf(input, "%*s %s", note);
+    
+
+    char out_msg[2000] = {0};
+    char seperator[] = " ";
+    strcpy(out_msg, "M ");
+
+    //Send Hex public key
+    //char* start = pub_key + 31;
+    char asci_pub_key[500] = {0};
+    int i = 31;
+    int x = 0;
+    while (pub_key[i] != '-') {
+        if(pub_key[i] != '\n') asci_pub_key[x++] = pub_key[i];
+        i++;
+    }
+
+    printf("length: %lu\n", strlen(asci_pub_key));
+
+
+    printf("PUBLIC KEY STRIPPED: %s\n", asci_pub_key);
+
+
+
+    strcat(out_msg, asci_pub_key);
+    strcat(out_msg, seperator);
+    strcat(out_msg, note);
+    char sig[513] = {0};
+    message_signature(sig,out_msg,your_keys);
+    strcat(out_msg, seperator);
+    strcat(out_msg,sig);
+
+    int sock_out = nn_socket (AF_SP, NN_PUSH);
+    assert (sock_out >= 0);
+    int timeout = 50;
+    assert (nn_setsockopt(sock_out, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
+    sleep(1);
+
+    printf("\nSending: %s\n", out_msg);
+    strli_node* current = other_nodes->head;
+
+    for(int i = 0; i < other_nodes->length; i++) {
+        int eid = nn_connect (sock_out, current->value); 
+        assert(eid >= 0);
+        printf("Announcing to: %s, ", current->value);
+        int bytes = nn_send (sock_out, out_msg, strlen(out_msg), 0);
+        printf("Bytes sent: %d\n", bytes);
+        current = current->next;
+        nn_shutdown(sock_out,eid);
+    }
+
+    return;
+
+
+
+}
+
 
 void post_transaction(char* input) {
 
@@ -327,7 +388,8 @@ int main(void) {
 
         else if(buffer[0] == 'n')
             post_transaction(buffer);
-
+        else if(buffer[0] == 'p')
+            post_music(buffer);
         else if( !strcmp("", buffer))
             ;
         else
