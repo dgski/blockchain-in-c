@@ -23,14 +23,14 @@ char node_name[60];
 unsigned int node_earnings;
 int* beaten;
 blockchain* our_chain;
+blockchain* foreign_chain;
 
 pthread_t network_thread;
 char our_ip[100] = {0};
-strlist* outbound_msgs;
 strlist* other_nodes;
 
 //Send new block block to other nodes
-void* announce_block(strli_node* in_item) {
+void* announce_block(strlist* in_list, strli_node* in_item) {
 
     if(!strcmp(in_item->value, our_ip)) return NULL;
 
@@ -39,10 +39,31 @@ void* announce_block(strli_node* in_item) {
     int timeout = 50;
     assert (nn_setsockopt(sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
     assert (nn_connect (sock, in_item->value) >= 0);
+
     printf("Announcing to: %s, ", in_item->value);
     char message[2000];
-    strcpy(message, "B ");
+    strcpy(message, "B> ");
     strcat(message, our_chain->last_block);
+    int bytes = nn_send (sock, message, strlen(message), 0);
+    printf("Bytes sent: %d\n", bytes);
+    nn_shutdown(sock,0);
+
+    return NULL;
+}
+
+void* announce_existance(strlist* in_list, strli_node* in_item) {
+
+    if(!strcmp(in_item->value, our_ip)) return NULL;
+
+    int sock = nn_socket(AF_SP, NN_PUSH);
+    assert (sock >= 0);
+    int timeout = 50;
+    assert (nn_setsockopt(sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
+    assert (nn_connect (sock, in_item->value) >= 0);
+    printf("Announcing existance to: %s, ", in_item->value);
+    char message[2000];
+    strcpy(message, "N ");
+    strcat(message, our_ip);
     int bytes = nn_send (sock, message, strlen(message), 0);
     printf("Bytes sent: %d\n", bytes);
     nn_shutdown(sock,0);
@@ -168,15 +189,7 @@ bool verify_transaction(const char* input, char* sender, char* recipient, char* 
 //Insert transaction [sender receiver amount]
 int insert_trans(char* input) {
 
-    
     printf("\nVerifying Transaction...");
-    /*
-    char sender[500] = {0};
-    char recipient[500];
-    int amount;
-    char signature[500] = {0};
-    sscanf(input, "%s %s %d %s", sender, recipient, &amount, signature);
-    */
 
     char* sender = strtok(input," ");
     char* recipient = strtok(NULL, " ");
@@ -190,9 +203,10 @@ int insert_trans(char* input) {
     if(!verify_transaction(input,sender, recipient, amount, signature))
         return -1;
 
+    printf("\nInserting.\n");
+
     int amount2;
     sscanf(amount,"%d",&amount2);
-    printf("\nInserting.\n");
 
     new_transaction(our_chain,sender,recipient,amount2,signature);
 
@@ -208,7 +222,7 @@ int insert_post(const char* input) {
     sscanf(input, "%s %s", sender, music);
     return 0;
 }
-//Verify Foreign Block []
+//Verify Foreign Block
 void verify_foreign_block(const char* input) {
     //printf("Verifying Foreign Block: %s\n", input);
     printf("Verifying Foreign Block... ");
@@ -222,20 +236,7 @@ void verify_foreign_block(const char* input) {
     char* trans_size = strtok(NULL, ".");
     char* proof = strtok(NULL, ".");
     char* hash = strtok(NULL, ".");
-    /*
-    printf("recieved hash: %s\n", hash);
-    printf("our_last_hash: %s\n",our_chain->last_hash);
-    printf("LONG FORM: %ld\n", the_proof);
-    printf("the result: %d\n", valid_proof(our_chain->last_hash, the_proof));
-    char guess[GUESS_SIZE] = {0};
-    sprintf(guess, "%s%020ld",(char*)our_chain->last_hash, the_proof);
-    unsigned char tester[32] = {0};
-    aahash256(tester,guess);
-    printf("generated hash: ");
-    for(int i = 0; i < 32; i++)
-        printf("%02x",tester[i]);
-    printf("\n");*/
-
+    
     long the_proof;
     sscanf(proof,"%020ld",&the_proof);
     
@@ -267,12 +268,154 @@ void verify_foreign_block(const char* input) {
 //Regster New Node [node_ip]
 void register_new_node(char* input) {
     
-    printf("Registering New Node:");
-    if(strli_search(other_nodes, NULL, input))
+    printf("Registering New Node...");
+    if(strli_search(other_nodes, NULL, input)) {
+        printf(" Already registered.");
         return;
+    }
 
     strli_append(other_nodes, input);
+    printf("Added '%s'\n", input);
+
+    //Anounce your chain length
+    int sock = nn_socket(AF_SP, NN_PUSH);
+    assert (sock >= 0);
+    int timeout = 50;
+    assert (nn_setsockopt(sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
+    assert (nn_connect (sock, input) >= 0);
+    sleep(1);
+
+    printf("Sending Chain Length to: %s, ", input);
+    char message[2000];
+    strcpy(message, "L ");
+    char length_buffer[21];
+    sprintf(length_buffer,"%d",our_chain->length);
+    strcat(message, length_buffer);
+    strcat(message, " ");
+    strcat(message, our_ip);
+    int bytes = nn_send (sock, message, strlen(message), 0);
+    printf("Bytes sent: %d\n", bytes);
+    nn_shutdown(sock,0);
+
+
 }
+
+int request_chain(char* address) {
+
+    //Request chain foreign chain
+    int sock = nn_socket(AF_SP, NN_PUSH);
+    assert (sock >= 0);
+    int timeout = 50;
+    assert (nn_setsockopt(sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
+    assert (nn_connect (sock, address) >= 0);
+    sleep(1);
+
+    printf("Requesting chain from: %s, ", address);
+    char message[2000];
+    strcpy(message, "C ");
+    strcat(message, our_ip);
+    int bytes = nn_send (sock, message, strlen(message), 0);
+    printf("Bytes sent: %d\n", bytes);
+    nn_shutdown(sock,0);
+
+    return 0;
+
+}
+
+int compare_length(char* input) {
+
+    printf("Checking foreign chain length... ");
+    unsigned int foreign_length;
+    char Whom[200];
+    sscanf(input, "%d %s", &foreign_length, Whom);
+
+    if(foreign_length > our_chain->length || true) {
+        printf("Someone claims they are a winner!\n");
+        request_chain(Whom);
+    }
+    else
+        printf("False alarm. Our chain is still good!\n");
+
+    return 0;
+}
+
+int send_chain(char* address) {
+
+    int sock = nn_socket(AF_SP, NN_PUSH);
+    assert (sock >= 0);
+    int timeout = 50;
+    assert (nn_setsockopt(sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
+    assert (nn_connect (sock, address) >= 0);
+    printf("Sending blockchain existance to: %s, ", address);
+    char message[2200] = {0};
+
+    blink* temp = our_chain->head;
+    for(int i = 0; i < our_chain->length + 1; i++) {
+
+        strcpy(message, "B+ ");
+        char block[2000] = {0};
+        string_block(block,&temp->data);
+        strcat(message, block);
+        
+        int bytes = nn_send (sock, message, strlen(message), 0);
+        printf("Bytes sent: %d\n", bytes);
+
+        temp = temp->next;
+    }
+
+    nn_shutdown(sock,0);
+
+    return 0;
+}
+
+int chain_incoming(char* input) {
+
+    char f_block[2000] = {0};
+    strcpy(f_block, input);
+
+    char* index = strtok(f_block,".");
+    char* time = strtok(NULL, ".");
+    char* transactions = strtok(NULL, ".");
+    char* trans_size = strtok(NULL, ".");
+    char* proof = strtok(NULL, ".");
+    char* hash = strtok(NULL, ".");
+
+    printf("Block with index %d recieved\n", atoi(index));
+
+     if(atoi(index) == 0) {
+        foreign_chain = new_chain();
+        printf("Created genesis block for foreign entity.\n");
+        return 0;
+    }
+
+
+    long the_proof;
+    sscanf(proof,"%020ld",&the_proof);
+    
+    
+    if(valid_proof(foreign_chain->last_hash, the_proof)){
+        printf("Valid.\n");
+
+        char posts[] = {};
+        transaction rec_trans[20] = {0};
+        extract_transactions(rec_trans, transactions);
+        //Add block and reset chain
+        blink* a_block = append_new_block(foreign_chain, atoi(index), atoi(time),rec_trans, posts, atoi(trans_size), the_proof);
+        printf(ANSI_COLOR_YELLOW);
+        printf("\nVERIFIED:\n");
+        print_block(a_block,'-');
+        printf(ANSI_COLOR_RESET);
+
+        //Add received block
+
+        *beaten = 1; //Will stop mining current block
+
+    }
+
+
+
+    return 0;
+}  
 
 
 //Message type: T: transaction, P: post, B: block, N: new node, L: blockchain length, C: chain
@@ -290,25 +433,34 @@ void process_message(const char* in_msg) {
         insert_trans(to_process + 2);
     if(!strcmp(token, "P"))
         insert_post(to_process + 2);
-    if(!strcmp(token, "B"))
-        verify_foreign_block(to_process + 2);
+    if(!strcmp(token, "B>"))
+        verify_foreign_block(to_process + 3);
+    if(!strcmp(token, "B+"))
+        chain_incoming(to_process + 3);
     if(!strcmp(token, "N"))
         register_new_node(to_process + 2);
     if(!strcmp(token, "L"))
-        ;
+        compare_length(to_process + 2);
     if(!strcmp(token, "C"))
-        ;
+        send_chain(to_process + 2);
 
 
 }
-void* send_node_msg(strli_node* item) {
+void* send_node_msg(strlist* in_list, strli_node* item) {
 
-    printf("Sending: %s", item->value);
-    char* toWhom = strtok(item->value,"#");
+    printf("Sending: %s\n", item->value);
+    char buffer[2000] = {0};
+    strcpy(buffer, item->value);
+    char* toWhom = strtok(buffer,"#");
     char* out_msg = strtok(NULL, "#");
 
     printf("toWHom: %s\n", toWhom);
     printf("out_msg: %s\n", out_msg);
+
+    if("message sent")
+        return (void*)1;
+    else
+        return (void*)0;
 
     return NULL;
 }
@@ -317,7 +469,7 @@ void* send_node_msg(strli_node* item) {
 void* server() {
     
     printf("Blockchain in C Major: Server v0.1\n");
-    //printf("Node name: %s\n\n", node_name);
+    printf("Node name: %s\n\n", node_name);
 
     int sock_in = nn_socket (AF_SP, NN_PULL);
     assert (sock_in >= 0);
@@ -339,6 +491,8 @@ void* server() {
         }
 
         //Send
+        //sleep(1);
+        //printf("sending out...\n");
         //strli_foreach(outbound_msgs, send_node_msg);
 
     }
@@ -365,10 +519,15 @@ int read_config() {
 void graceful_shutdown(int dummy) {
     printf("\nCommencing graceful shutdown!\n");
     
-    strli_discard(outbound_msgs);
     strli_discard(other_nodes);
     free(beaten);
     exit(0);
+}
+
+int send_out(char* address, char* message) {
+
+    return 1;
+
 }
 
 
@@ -389,7 +548,6 @@ int main(int argc, char* argv[]) {
     //Create list of other nodes
     other_nodes = create_strlist();
     read_config();
-    strli_print(other_nodes);
 
 
     //Generate random node name
@@ -403,13 +561,9 @@ int main(int argc, char* argv[]) {
     else
         strcpy(our_ip, argv[1]);
     
-    //Create outbound message list & add our IP to be sent to all nodes
-    
-    outbound_msgs = create_strlist();
-    char ip_broadcast[120] = {0};
-    strcpy(ip_broadcast, "all:::N ");
-    strcat(ip_broadcast, our_ip);
-    strli_append(outbound_msgs, ip_broadcast);
+    //Send out our existence
+    strli_foreach(other_nodes,announce_existance);
+
 
 
     //Reset node earnings

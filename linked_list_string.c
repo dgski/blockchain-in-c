@@ -118,13 +118,13 @@ void strli_delete_node(strlist* in_list, strli_node* in_node) {
     if(in_node->next == NULL && in_node->prev == NULL)
         ;
 
-    if(in_node->next == NULL)
+    if(in_node->next == NULL && in_node->prev != NULL)
         in_node->prev->next = NULL;
 
-    if(in_node->prev == NULL)
+    if(in_node->prev == NULL && in_node->next != NULL)
         in_node->next->prev = NULL;
 
-    else {
+    else if(in_node->prev != NULL & in_node->next != NULL) {
         in_node->prev->next = in_node->next;
         in_node->next->prev = in_node->prev;
     }
@@ -199,29 +199,34 @@ strli_node* strli_search(strlist* in_list, strli_node* head, char* input_value)
 
 	if(!strcmp(input_value, temp->value))
 	{
-		printf("%s is in list.\n", temp->value);
+		//printf("%s is in list.\n", temp->value);
 		return temp;
 	}
 
 	if(temp->next != NULL)
 		return strli_search(in_list, temp->next, input_value);
 
-	printf("%s is not in list\n", input_value);
+	//printf("%s is not in list\n", input_value);
 	return NULL;
 
 }
 
 //Run function for each element in string list (function takes node as input)
-void strli_foreach(strlist* in_list, void* (*func)(strli_node* input))
+void strli_foreach(strlist* in_list, void* (*func)(strlist* in_list, strli_node* input))
 {
     if(in_list->head == NULL)
         return;
 
     strli_node* temp = in_list->head;
     while(temp != NULL) {
-        (*func)(temp);
+        int to_delete = (int)(*func)(in_list, temp);
+
+        //printf("SHOULE WE DELETE? %d\n", to_delete);
+
+        if(to_delete)
+            strli_delete_node(in_list,temp);
+
         temp = temp->next;
     }
     return;
-
 }

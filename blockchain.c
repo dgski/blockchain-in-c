@@ -25,7 +25,7 @@ blockchain* new_chain() {
     memcpy(in_chain->last_hash, hash_block(&in_chain->head->data),HASH_HEX_SIZE);
     
     in_chain->trans_index = 0;
-    in_chain->new_index = 1;
+    in_chain->length = 0;
     char block[BLOCK_STR_SIZE];
     string_block(block,&(in_chain->head->data));
     strcpy(in_chain->last_block,block);
@@ -57,7 +57,7 @@ blink* append_current_block(blockchain* in_chain, long in_proof) {
     blink* the_block = blink_append(in_chain->head);
 
     //Add data
-    the_block->data.index = in_chain->new_index++;
+    the_block->data.index = ++(in_chain->length);
     the_block->data.time = time(NULL);
     memcpy(the_block->data.trans_list,in_chain->trans_list, sizeof(in_chain->trans_list));
     memcpy(the_block->data.posts, in_chain->new_posts, sizeof(the_block->data.posts));
@@ -103,7 +103,7 @@ blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int i
     memset(in_chain->trans_list,0, sizeof(in_chain->trans_list));
     in_chain->last_proof_of_work = proof;
     in_chain->trans_index = 0;
-    in_chain->new_index++;
+    ++(in_chain->length);
 
     //Register as latest block
     char block_str[BLOCK_STR_SIZE];
