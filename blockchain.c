@@ -33,6 +33,17 @@ blockchain* new_chain() {
     return in_chain;
 }
 
+int discard_chain(blockchain* in_chain) {
+
+    //Discard list of blocks in chain
+    blink_discard_list(in_chain->head);
+
+    //Free memory in struct
+    free(in_chain);
+
+    return 1;
+}
+
 //Add transaction to transaction_list
 void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, int in_amount, char* in_signature) {
 
@@ -255,7 +266,7 @@ bool valid_proof(char* last_hash, long proof) {
     unsigned char hash_value[HASH_SIZE];
     hash256(hash_value,guess);
 
-    return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' && (hash_value[3] > 60 && hash_value[3] < 127));
+    return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' /*&& (hash_value[3] > 60 && hash_value[3] < 127)*/);
 }
 
 long proof_of_work(int* beaten, char* last_hash) {

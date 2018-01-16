@@ -18,16 +18,49 @@
 #include "linked_list_string.h"
 #include "hash2.h"
 
+#define DEBUG 0
+
 //Global variables
 char node_name[60];
 unsigned int node_earnings;
 int* beaten;
 blockchain* our_chain;
+
 blockchain* foreign_chain;
+int expected_length;
 
 pthread_t network_thread;
 char our_ip[100] = {0};
 strlist* other_nodes;
+
+//Send out current chain length
+void* announce_length(strlist* in_list, strli_node* in_item) {
+
+    if(!strcmp(in_item->value, our_ip)) return NULL;
+
+    int sock = nn_socket(AF_SP, NN_PUSH);
+
+    assert (sock >= 0);
+    int timeout = 50;
+    assert (nn_setsockopt(sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
+    assert (nn_connect (sock, in_item->value) >= 0);
+
+    printf("Announcing chain length to: %s, ", in_item->value);
+    char message[2000];
+    strcpy(message, "L ");
+    char length_buffer[21];
+    sprintf(length_buffer,"%d",our_chain->length);
+    strcat(message, length_buffer);
+    strcat(message, " ");
+    strcat(message, our_ip);
+    int bytes = nn_send (sock, message, strlen(message), 0);
+    printf("Bytes sent: %d\n", bytes);
+    nn_shutdown(sock,0);
+
+
+    return NULL;
+}
+
 
 //Send new block block to other nodes
 void* announce_block(strlist* in_list, strli_node* in_item) {
@@ -79,6 +112,11 @@ int mine() {
     long result;
     
     while(true) {
+
+        if(DEBUG) {
+            char buffer[120] = {0};
+            fgets(buffer, sizeof(buffer), stdin);
+        }
         
         unsigned int time_1 = time(NULL);
         result = proof_of_work(beaten, our_chain->last_hash);
@@ -101,8 +139,9 @@ int mine() {
             //char block_buffer[BLOCK_STR_SIZE];
             //string_block(block_buffer, &a_block->data);
             //printf("%s\n", block_buffer);
-            strli_foreach(other_nodes,announce_block);
-        }
+            //strli_foreach(other_nodes,announce_block); //Block announcement
+            strli_foreach(other_nodes,announce_length);
+            }
         else {
             printf("Abandoning our in-progress block.\n");
             *beaten = 0;
@@ -239,10 +278,13 @@ void verify_foreign_block(const char* input) {
     
     long the_proof;
     sscanf(proof,"%020ld",&the_proof);
-    
+
+    //Check if transactions are valid
 
     if(valid_proof(our_chain->last_hash, the_proof)) {
         printf("Valid.\n");
+
+
 
         char posts[] = {};
         transaction rec_trans[20] = {0};
@@ -331,6 +373,7 @@ int compare_length(char* input) {
 
     if(foreign_length > our_chain->length || true) {
         printf("Someone claims they are a winner!\n");
+        expected_length = foreign_length;
         request_chain(Whom);
     }
     else
@@ -401,15 +444,28 @@ int chain_incoming(char* input) {
         extract_transactions(rec_trans, transactions);
         //Add block and reset chain
         blink* a_block = append_new_block(foreign_chain, atoi(index), atoi(time),rec_trans, posts, atoi(trans_size), the_proof);
-        printf(ANSI_COLOR_YELLOW);
-        printf("\nVERIFIED:\n");
-        print_block(a_block,'-');
+        printf(ANSI_COLOR_CYAN);
+        //printf("\nVerified Foreign Block with index %d.\n", atoi(index));
+        //print_block(a_block,'-');
         printf(ANSI_COLOR_RESET);
 
-        //Add received block
+        if((atoi(index)) > our_chain->length && (atoi(index) == expected_length)) {
 
-        *beaten = 1; //Will stop mining current block
+            printf("\nComplete chain is verified and longer. Make that ours.\n");
 
+            printf(ANSI_COLOR_CYAN);
+            printf("\nABSORBED TOP BLOCK:\n");
+            print_block(a_block,'-');
+            printf(ANSI_COLOR_RESET);
+
+
+            discard_chain(our_chain);
+            our_chain = foreign_chain;
+            foreign_chain = NULL;
+            
+            *beaten = 1;
+
+        }
     }
 
 

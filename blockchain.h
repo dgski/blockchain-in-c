@@ -58,6 +58,7 @@ typedef struct blockchain {
 
 //Chain functions
 blockchain* new_chain();
+int discard_chain(blockchain* in_chain);
 void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, int in_amount,char* in_signature);
 blink* append_current_block(blockchain* in_chain, long in_proof);
 blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int in_time, transaction* trans_list,
