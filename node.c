@@ -5,18 +5,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include <openssl/rsa.h>
-#include <openssl/pem.h>
-#include <openssl/err.h>
-#include <signal.h>
-
 
 #include "nanomsg/include/nn.h"
 #include "nanomsg/include/pipeline.h"
 
 #include "blockchain.h"
-#include "linked_list_string.h"
-#include "hash2.h"
+#include "data_containers/linked_list.h"
 
 #define DEBUG 0
 
@@ -31,21 +25,28 @@ int expected_length;
 
 pthread_t network_thread;
 char our_ip[100] = {0};
-strlist* other_nodes;
+
+list* other_nodes_2;
 
 //Send out current chain length
-void* announce_length(strlist* in_list, strli_node* in_item) {
+void* announce_length_2(list* in_list, li_node* in_item) {
 
-    if(!strcmp(in_item->value, our_ip)) return NULL;
+    char* data_string = malloc(in_item->size);
+    memcpy(data_string,in_item->data,in_item->size);
+
+    if(!strcmp(data_string, our_ip)) {
+        free(data_string);
+        return NULL;
+    }
 
     int sock = nn_socket(AF_SP, NN_PUSH);
 
     assert (sock >= 0);
     int timeout = 50;
     assert (nn_setsockopt(sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
-    assert (nn_connect (sock, in_item->value) >= 0);
+    assert (nn_connect (sock, data_string) >= 0);
 
-    printf("Announcing chain length to: %s, ", in_item->value);
+    printf("Announcing chain length to: %s, ", data_string);
     char message[2000];
     strcpy(message, "L ");
     char length_buffer[21];
@@ -57,23 +58,29 @@ void* announce_length(strlist* in_list, strli_node* in_item) {
     printf("Bytes sent: %d\n", bytes);
     nn_shutdown(sock,0);
 
+    free(data_string);
 
     return NULL;
 }
 
-
 //Send new block block to other nodes
-void* announce_block(strlist* in_list, strli_node* in_item) {
+void* announce_block_2(list* in_list, li_node* in_item) {
 
-    if(!strcmp(in_item->value, our_ip)) return NULL;
+    char* data_string = malloc(in_item->size);
+    memcpy(data_string,in_item->data,in_item->size);
+
+    if(!strcmp(data_string, our_ip)){
+        free(data_string);
+        return NULL;
+    } 
 
     int sock = nn_socket(AF_SP, NN_PUSH);
     assert (sock >= 0);
     int timeout = 50;
     assert (nn_setsockopt(sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
-    assert (nn_connect (sock, in_item->value) >= 0);
+    assert (nn_connect (sock, data_string) >= 0);
 
-    printf("Announcing to: %s, ", in_item->value);
+    printf("Announcing to: %s, ", data_string);
     char message[2000];
     strcpy(message, "B> ");
     strcat(message, our_chain->last_block);
@@ -81,25 +88,35 @@ void* announce_block(strlist* in_list, strli_node* in_item) {
     printf("Bytes sent: %d\n", bytes);
     nn_shutdown(sock,0);
 
+    free(data_string);
+
     return NULL;
 }
 
-void* announce_existance(strlist* in_list, strli_node* in_item) {
+void* announce_existance_2(list* in_list, li_node* in_item) {
 
-    if(!strcmp(in_item->value, our_ip)) return NULL;
+    char* data_string = malloc(in_item->size);
+    memcpy(data_string,in_item->data,in_item->size);
+
+    if(!strcmp(data_string, our_ip)){
+        free(data_string);
+        return NULL;
+    }
 
     int sock = nn_socket(AF_SP, NN_PUSH);
     assert (sock >= 0);
     int timeout = 50;
     assert (nn_setsockopt(sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
-    assert (nn_connect (sock, in_item->value) >= 0);
-    printf("Announcing existance to: %s, ", in_item->value);
+    assert (nn_connect (sock, data_string) >= 0);
+    printf("Announcing existance to: %s, ", data_string);
     char message[2000];
     strcpy(message, "N ");
     strcat(message, our_ip);
     int bytes = nn_send (sock, message, strlen(message), 0);
     printf("Bytes sent: %d\n", bytes);
     nn_shutdown(sock,0);
+
+    free(data_string);
 
     return NULL;
 }
@@ -140,7 +157,10 @@ int mine() {
             //string_block(block_buffer, &a_block->data);
             //printf("%s\n", block_buffer);
             //strli_foreach(other_nodes,announce_block); //Block announcement
-            strli_foreach(other_nodes,announce_length);
+            //strli_foreach(other_nodes,announce_length);
+            li_foreach(other_nodes_2,announce_length_2);
+
+
             }
         else {
             printf("Abandoning our in-progress block.\n");
@@ -152,77 +172,7 @@ int mine() {
 }
 
 
-bool verify_transaction(const char* input, char* sender, char* recipient, char* amount, char* signature) {
-    
-    char data[1500] = {0};
 
-    strcat(data, sender);
-    strcat(data, " ");
-
-    strcat(data, recipient);
-    strcat(data," ");
-
-    //char buffer[20] = {0};
-    //sprintf(buffer, "%d", amount);
-    strcat(data, amount);
-
-    //printf("MESSAGE: %s\n", data);
-
-    unsigned char hash_value[32];
-    aahash256(hash_value,data);
-    /*printf("HASHVALUE:\n");
-    for(int i= 0; i < 32; i++)
-        printf("%02x", hash_value[i]);
-    printf("\n");*/
-
-    unsigned char sig[256];
-    char* pointer = signature;
-    //extract sig from hex asci
-    for(int i = 0; i < 256; i++) {
-        unsigned int value;
-        sscanf(pointer, "%02x", &value);
-        pointer = pointer + 2;
-        sig[i] = value;
-    }
-    //printf("\n");
-
-    //printf("\n\nASCI SIG:\n%s\n\n", signature);
-
-    char our_key[1000] = {0};
-    char* new_key_point = our_key;
-    char* send_pointer = sender;
-
-    for(int i = 0; i < 5; i++) {
-        memcpy(new_key_point,send_pointer,64);
-        new_key_point = new_key_point + 64;
-        send_pointer = send_pointer + 64;
-        *new_key_point++ = '\n';
-    }
-
-    memcpy(new_key_point,send_pointer,41);
-
-    char final_key[427] = {0};
-    sprintf(final_key,"-----BEGIN RSA PUBLIC KEY-----\n%s\n-----END RSA PUBLIC KEY-----\n", our_key);
-
-    //printf("%s", final_key);
-
-
-
-
-    char* pub_key = final_key;
-
-    //printf("size of key: %lu\n", strlen(pub_key) + 1);
-    //printf("\n%s\n", pub_key);
-
-    BIO *bio = BIO_new_mem_buf((void*)pub_key, strlen(pub_key));
-    RSA *rsa_pub = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
-
-    int rc = RSA_verify(NID_sha256, hash_value,32,sig,256,rsa_pub);
-    //printf("VERIFY RETURN: %d\n", rc);
-    if(rc != 1) printf("Invalid."); else printf("Valid.");
-
-    if(rc) return true; else return false;
-}
 
 
 //Insert transaction [sender receiver amount]
@@ -308,15 +258,15 @@ void verify_foreign_block(const char* input) {
 }
 
 //Regster New Node [node_ip]
-void register_new_node(char* input) {
+void register_new_node_2(char* input) {
     
     printf("Registering New Node...");
-    if(strli_search(other_nodes, NULL, input)) {
+    if(li_search(other_nodes_2,NULL,input,strlen(input) + 1)) {
         printf(" Already registered.");
         return;
     }
 
-    strli_append(other_nodes, input);
+    li_append(other_nodes_2, input, strlen(input) + 1);
     printf("Added '%s'\n", input);
 
     //Anounce your chain length
@@ -494,7 +444,7 @@ void process_message(const char* in_msg) {
     if(!strcmp(token, "B+"))
         chain_incoming(to_process + 3);
     if(!strcmp(token, "N"))
-        register_new_node(to_process + 2);
+        register_new_node_2(to_process + 2);
     if(!strcmp(token, "L"))
         compare_length(to_process + 2);
     if(!strcmp(token, "C"))
@@ -502,24 +452,7 @@ void process_message(const char* in_msg) {
 
 
 }
-void* send_node_msg(strlist* in_list, strli_node* item) {
 
-    printf("Sending: %s\n", item->value);
-    char buffer[2000] = {0};
-    strcpy(buffer, item->value);
-    char* toWhom = strtok(buffer,"#");
-    char* out_msg = strtok(NULL, "#");
-
-    printf("toWHom: %s\n", toWhom);
-    printf("out_msg: %s\n", out_msg);
-
-    if("message sent")
-        return (void*)1;
-    else
-        return (void*)0;
-
-    return NULL;
-}
 
 //Network interface function
 void* server() {
@@ -558,14 +491,14 @@ void* server() {
 }
 
 //Read configuration file
-int read_config() {
+int read_config2() {
     FILE* config = fopen("node.cfg", "r");
     if(config == NULL) return 0;
 
     char buffer[120] = {0};
     while (fgets(buffer, sizeof(buffer), config)) {
         if(buffer[strlen(buffer) -1] == '\n') buffer[strlen(buffer) -1] = 0;
-        strli_append(other_nodes, buffer);
+        li_append(other_nodes_2, buffer, strlen(buffer) + 1);
     }
     fclose(config);
 
@@ -575,7 +508,7 @@ int read_config() {
 void graceful_shutdown(int dummy) {
     printf("\nCommencing graceful shutdown!\n");
     
-    strli_discard(other_nodes);
+    li_discard(other_nodes_2);
     free(beaten);
     exit(0);
 }
@@ -585,8 +518,6 @@ int send_out(char* address, char* message) {
     return 1;
 
 }
-
-
 
 //Main function
 int main(int argc, char* argv[]) {
@@ -602,8 +533,8 @@ int main(int argc, char* argv[]) {
     *beaten = 0;
 
     //Create list of other nodes
-    other_nodes = create_strlist();
-    read_config();
+    other_nodes_2 = list_create();
+    read_config2();
 
 
     //Generate random node name
@@ -618,9 +549,8 @@ int main(int argc, char* argv[]) {
         strcpy(our_ip, argv[1]);
     
     //Send out our existence
-    strli_foreach(other_nodes,announce_existance);
-
-
+    //strli_foreach(other_nodes,announce_existance);
+    li_foreach(other_nodes_2,announce_existance_2);
 
     //Reset node earnings
     node_earnings = 0;

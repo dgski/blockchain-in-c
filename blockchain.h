@@ -70,6 +70,7 @@ char* string_block(char* output, block* in_block);
 char* hash_block(block* in_block);
 int extract_transactions(transaction* trans_array, char* in_trans);
 
+
 //Link functions
 blink* blink_create();
 blink* blink_prepend(blink* head);
@@ -82,6 +83,7 @@ void blink_discard_list(blink* head);
 //Work functions
 bool valid_proof( char* last_hash, long proof);
 long proof_of_work(int* beaten, char* last_hash);
+bool verify_transaction(const char* input, char* sender, char* recipient, char* amount, char* signature);
 
 
 

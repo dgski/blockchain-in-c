@@ -2,6 +2,10 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <time.h>
+#include <openssl/rsa.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
+#include <signal.h>
 
 #include "blockchain.h"
 #include "hash.h"
@@ -289,6 +293,75 @@ long proof_of_work(int* beaten, char* last_hash) {
     sprintf(guess, "%s%020ld",last_hash, proof);*/
 
     return proof;
+}
+
+bool verify_transaction(const char* input, char* sender, char* recipient, char* amount, char* signature) {
+    
+    char data[1500] = {0};
+
+    strcat(data, sender);
+    strcat(data, " ");
+
+    strcat(data, recipient);
+    strcat(data," ");
+
+    //char buffer[20] = {0};
+    //sprintf(buffer, "%d", amount);
+    strcat(data, amount);
+
+    //printf("MESSAGE: %s\n", data);
+
+    unsigned char hash_value[32];
+    hash256(hash_value,data);
+    /*printf("HASHVALUE:\n");
+    for(int i= 0; i < 32; i++)
+        printf("%02x", hash_value[i]);
+    printf("\n");*/
+
+    unsigned char sig[256];
+    char* pointer = signature;
+    //extract sig from hex asci
+    for(int i = 0; i < 256; i++) {
+        unsigned int value;
+        sscanf(pointer, "%02x", &value);
+        pointer = pointer + 2;
+        sig[i] = value;
+    }
+    //printf("\n");
+
+    //printf("\n\nASCI SIG:\n%s\n\n", signature);
+
+    char our_key[1000] = {0};
+    char* new_key_point = our_key;
+    char* send_pointer = sender;
+
+    for(int i = 0; i < 5; i++) {
+        memcpy(new_key_point,send_pointer,64);
+        new_key_point = new_key_point + 64;
+        send_pointer = send_pointer + 64;
+        *new_key_point++ = '\n';
+    }
+
+    memcpy(new_key_point,send_pointer,41);
+
+    char final_key[427] = {0};
+    sprintf(final_key,"-----BEGIN RSA PUBLIC KEY-----\n%s\n-----END RSA PUBLIC KEY-----\n", our_key);
+
+    //printf("%s", final_key);
+
+    char* pub_key = final_key;
+
+    //printf("size of key: %lu\n", strlen(pub_key) + 1);
+    //printf("\n%s\n", pub_key);
+
+    BIO *bio = BIO_new_mem_buf((void*)pub_key, strlen(pub_key));
+    RSA *rsa_pub = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
+
+    int rc = RSA_verify(NID_sha256, hash_value,32,sig,256,rsa_pub);
+    //printf("VERIFY RETURN: %d\n", rc);
+    if(rc != 1) printf("Invalid."); else printf("Valid.");
+
+    if(rc) return true; else return false;
 }
 
 
