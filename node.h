@@ -21,7 +21,7 @@ int compare_length(char* input);
 int send_chain(char* address);
 int chain_incoming(char* input);
 void process_message(const char* in_msg);
-void* server();
+void* in_server();
 int read_config();
 void graceful_shutdown(int dummy);
 int main(int argc, char* argv[]);

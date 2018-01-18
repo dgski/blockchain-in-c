@@ -24,7 +24,9 @@ blockchain* our_chain;
 blockchain* foreign_chain;
 
 int expected_length;
-pthread_t network_thread;
+pthread_t inbound_network_thread;
+pthread_t outbound_network_thread;
+
 char our_ip[100] = {0};
 
 list* other_nodes;
@@ -149,7 +151,7 @@ void* announce_existance(list* in_list, li_node* in_item, void* data) {
 
 //Continually searches for proper proof of work
 int mine() {
-    sleep(1);
+    sleep(2);
     printf("\nMining started.\n");
     long result;
     
@@ -358,11 +360,11 @@ int send_chain(char* address) {
         string_block(block,&temp->data);
         strcat(message, block);
 
-        message_item send_chain;
-        setup_message(&send_chain);
-        strcpy(send_chain.toWhom, address);
-        strcpy(send_chain.message, message);
-        li_append(outbound_msg_queue,&send_chain, sizeof(send_chain));
+        message_item the_chain;
+        setup_message(&the_chain);
+        strcpy(the_chain.toWhom, address);
+        strcpy(the_chain.message, message);
+        li_append(outbound_msg_queue,&the_chain, sizeof(the_chain));
 
         temp = temp->next;
     }
@@ -469,6 +471,12 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
 
     if(input == NULL) return NULL;
 
+    //Outbound socket
+    sock_out = nn_socket(AF_SP, NN_PUSH);
+    assert (sock_out >= 0);
+    int timeout = 200;
+    assert (nn_setsockopt(sock_out, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
+
     //cast input data as message_item struct
     message_item* our_message = (message_item*)input->data;
 
@@ -476,7 +484,7 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
     assert (nn_connect (sock_out, our_message->toWhom) >= 0);
     int bytes = nn_send (sock_out, our_message->message, strlen(our_message->message), 0);
     printf("Bytes sent: %d\n", bytes);
-    nn_shutdown(sock_out, 0);
+    nn_close(sock_out);
 
     if(bytes > 0 || our_message->tries == 2) li_delete_node(in_list, input);
     else our_message->tries++;
@@ -485,32 +493,21 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
 }
 
 //Network interface function
-void* server() {
+void* in_server() {
     
     printf("Blockchain in C Major: Server v0.1\n");
     printf("Node name: %s\n\n", node_name);
-
 
     //Inbound socket
     sock_in = nn_socket (AF_SP, NN_PULL);
     assert (sock_in >= 0);
     assert (nn_bind (sock_in, our_ip) >= 0);
-    usleep(100000);
-    int timeout = 500;
+    int timeout = -1;
     assert (nn_setsockopt (sock_in, NN_SOL_SOCKET, NN_RCVTIMEO, &timeout, sizeof (timeout)) >= 0);
-    usleep(100000);
 
     printf("Inbound Socket Ready!\n");
 
-    //Outbound socket
-    sock_out = nn_socket(AF_SP, NN_PUSH);
-    usleep(100000);
-    assert (sock_out >= 0);
-    timeout = 500;
-    assert (nn_setsockopt(sock_out, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
-    usleep(100000);
-
-    printf("Outbound Socket Ready!\n");
+    
 
     char buf[1000] = {0};
 
@@ -518,7 +515,7 @@ void* server() {
         
         //Receive
         memset(buf, 0, sizeof(buf));
-        //printf("waiting for message...\n");
+        printf("waiting for message...\n");
 
         int bytes = nn_recv(sock_in, buf, sizeof(buf), 0);
         if(bytes > 0) {
@@ -526,16 +523,20 @@ void* server() {
             process_message(buf);
         }
 
-        //Send
-        //printf("sending out...\n");
-        li_foreach(outbound_msg_queue, process_outbound, NULL);
-        li_print(outbound_msg_queue, print_list);
-
         
 
     }
 
     return 0;
+}
+
+void* out_server() {
+
+    while(true) {
+        sleep(1);
+        printf("checking message queue:\n");
+        li_foreach(outbound_msg_queue, process_outbound, NULL);
+    }
 }
 
 //Read configuration file
@@ -616,7 +617,10 @@ int main(int argc, char* argv[]) {
     node_earnings = 0;
 
     //Listen and respond to network connections
-    pthread_create(&network_thread, NULL, server, NULL);
+    pthread_create(&inbound_network_thread, NULL, in_server, NULL);
+    pthread_create(&outbound_network_thread, NULL, out_server, NULL);
+
+
 
     //Begin mining
     mine();
