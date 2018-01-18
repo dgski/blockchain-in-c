@@ -5,6 +5,13 @@
         "blockchain.h": "c",
         "time.h": "c",
         "hash.h": "c",
-        "linked_list_string.h": "c"
+        "linked_list_string.h": "c",
+        "iterator": "cpp",
+        "memory": "c",
+        "pipeline.h": "c",
+        "ios": "c",
+        "string": "cpp",
+        "string_view": "cpp",
+        "vector": "cpp"
     }
 }

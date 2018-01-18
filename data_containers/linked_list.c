@@ -122,8 +122,10 @@ void li_delete_node(list* in_list, li_node* in_node) {
     if(in_node->next == NULL && in_node->prev != NULL)
         in_node->prev->next = NULL;
 
-    if(in_node->prev == NULL && in_node->next != NULL)
+    if(in_node->prev == NULL && in_node->next != NULL) {
         in_node->next->prev = NULL;
+        in_list->head = in_node->next;
+    }
 
     else if(in_node->prev != NULL & in_node->next != NULL) {
         in_node->prev->next = in_node->next;
@@ -131,6 +133,8 @@ void li_delete_node(list* in_list, li_node* in_node) {
     }
 
     in_list->length--;
+    if(in_list->length == 0) in_list->head = NULL;
+    free(in_node->data);
     free(in_node);
 }
 
@@ -140,7 +144,7 @@ void li_print(list* in_list, void* (*print_function)(void* data))
     if(in_list->head == NULL)
         return;
 
-    printf("%d List Items:\n", in_list->length);
+    printf("\n%d List Items:\n", in_list->length);
 
     li_node* temp = in_list->head;
 
@@ -246,17 +250,18 @@ li_node* li_search(list* in_list, li_node* head, void* input_value, size_t input
 }
 
 //Run function for each element in string list (function takes node as input)
-void li_foreach(list* in_list, void* (*func)(list* in_list, li_node* input))
+void li_foreach(list* in_list, void* (*func)(list* in_list, li_node* input, void* data), void* data)
 {
-    if(in_list->head == NULL)
+    //printf("list_length: %d\n", in_list->length);
+    if(in_list->head == NULL || in_list->length == 0)
         return;
 
     li_node* temp = in_list->head;
     while(temp != NULL) {
-        int to_delete = (int)(*func)(in_list, temp);
-
+        int to_delete = (int)(*func)(in_list, temp, data);
+        /*
         if(to_delete)
-            li_delete_node(in_list,temp);
+            li_delete_node(in_list,temp);*/
 
         temp = temp->next;
     }

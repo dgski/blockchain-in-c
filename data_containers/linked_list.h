@@ -28,5 +28,5 @@ void li_print(list* in_list, void* (*print_function)(void* data));
 void li_discard(list* in_list);
 li_node* li_string_search(list* in_list, li_node* head, char* input_value);
 li_node* li_search(list* in_list, li_node* head, void* input_value, size_t input_size);
-void li_foreach(list* in_list, void* (*func)(list* in_list, li_node* input));
+void li_foreach(list* in_list, void* (*func)(list* in_list, li_node* input, void* data), void* data);
 

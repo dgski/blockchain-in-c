@@ -11,6 +11,7 @@
 
 #include "blockchain.h"
 #include "data_containers/linked_list.h"
+#include "node.h"
 
 #define DEBUG 0
 
@@ -18,18 +19,33 @@
 char node_name[60];
 unsigned int node_earnings;
 int* beaten;
+
 blockchain* our_chain;
-
 blockchain* foreign_chain;
-int expected_length;
 
+int expected_length;
 pthread_t network_thread;
 char our_ip[100] = {0};
 
-list* other_nodes_2;
+list* other_nodes;
+list* outbound_msg_queue; //holds message structs
+
+int sock_in;
+int sock_out;
+
+
+//Empty message
+void setup_message(message_item* in_message) {
+    
+    memset(in_message->message, 0, sizeof(in_message->message));
+    in_message->tries = 0;
+    memset(in_message->toWhom, 0, sizeof(in_message->toWhom));
+    return;
+}
+
 
 //Send out current chain length
-void* announce_length_2(list* in_list, li_node* in_item) {
+void* announce_length(list* in_list, li_node* in_item, void* data) {
 
     char* data_string = malloc(in_item->size);
     memcpy(data_string,in_item->data,in_item->size);
@@ -64,7 +80,7 @@ void* announce_length_2(list* in_list, li_node* in_item) {
 }
 
 //Send new block block to other nodes
-void* announce_block_2(list* in_list, li_node* in_item) {
+void* announce_block(list* in_list, li_node* in_item, void* data) {
 
     char* data_string = malloc(in_item->size);
     memcpy(data_string,in_item->data,in_item->size);
@@ -93,8 +109,8 @@ void* announce_block_2(list* in_list, li_node* in_item) {
     return NULL;
 }
 
-void* announce_existance_2(list* in_list, li_node* in_item) {
-
+void* announce_existance(list* in_list, li_node* in_item, void* data) {
+    
     char* data_string = malloc(in_item->size);
     memcpy(data_string,in_item->data,in_item->size);
 
@@ -102,7 +118,15 @@ void* announce_existance_2(list* in_list, li_node* in_item) {
         free(data_string);
         return NULL;
     }
+   
+    message_item announcement;
+    setup_message(&announcement);
+    strcpy(announcement.toWhom, data_string);
+    strcpy(announcement.message, "N ");
+    strcat(announcement.message, our_ip);
+    li_append(outbound_msg_queue,&announcement,sizeof(announcement));
 
+     /*
     int sock = nn_socket(AF_SP, NN_PUSH);
     assert (sock >= 0);
     int timeout = 50;
@@ -116,7 +140,8 @@ void* announce_existance_2(list* in_list, li_node* in_item) {
     printf("Bytes sent: %d\n", bytes);
     nn_shutdown(sock,0);
 
-    free(data_string);
+    free(data_string);*/
+
 
     return NULL;
 }
@@ -125,7 +150,7 @@ void* announce_existance_2(list* in_list, li_node* in_item) {
 //Continually searches for proper proof of work
 int mine() {
     sleep(1);
-    printf("Mining started.\n");
+    printf("\nMining started.\n");
     long result;
     
     while(true) {
@@ -158,7 +183,7 @@ int mine() {
             //printf("%s\n", block_buffer);
             //strli_foreach(other_nodes,announce_block); //Block announcement
             //strli_foreach(other_nodes,announce_length);
-            li_foreach(other_nodes_2,announce_length_2);
+            li_foreach(other_nodes,announce_length, NULL);
 
 
             }
@@ -258,26 +283,18 @@ void verify_foreign_block(const char* input) {
 }
 
 //Regster New Node [node_ip]
-void register_new_node_2(char* input) {
+void register_new_node(char* input) {
     
     printf("Registering New Node...");
-    if(li_search(other_nodes_2,NULL,input,strlen(input) + 1)) {
+    if(li_search(other_nodes,NULL,input,strlen(input) + 1)) {
         printf(" Already registered.");
         return;
     }
 
-    li_append(other_nodes_2, input, strlen(input) + 1);
+    li_append(other_nodes, input, strlen(input) + 1);
     printf("Added '%s'\n", input);
 
-    //Anounce your chain length
-    int sock = nn_socket(AF_SP, NN_PUSH);
-    assert (sock >= 0);
-    int timeout = 50;
-    assert (nn_setsockopt(sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
-    assert (nn_connect (sock, input) >= 0);
-    sleep(1);
-
-    printf("Sending Chain Length to: %s, ", input);
+    printf("Sending chain length to: %s, ", input);
     char message[2000];
     strcpy(message, "L ");
     char length_buffer[21];
@@ -285,30 +302,26 @@ void register_new_node_2(char* input) {
     strcat(message, length_buffer);
     strcat(message, " ");
     strcat(message, our_ip);
-    int bytes = nn_send (sock, message, strlen(message), 0);
-    printf("Bytes sent: %d\n", bytes);
-    nn_shutdown(sock,0);
 
-
+    message_item chain_send;
+    setup_message(&chain_send);
+    strcpy(chain_send.toWhom, input);
+    strcpy(chain_send.message, message);
+    li_append(outbound_msg_queue,&chain_send, sizeof(chain_send));
 }
 
 int request_chain(char* address) {
-
-    //Request chain foreign chain
-    int sock = nn_socket(AF_SP, NN_PUSH);
-    assert (sock >= 0);
-    int timeout = 50;
-    assert (nn_setsockopt(sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
-    assert (nn_connect (sock, address) >= 0);
-    sleep(1);
 
     printf("Requesting chain from: %s, ", address);
     char message[2000];
     strcpy(message, "C ");
     strcat(message, our_ip);
-    int bytes = nn_send (sock, message, strlen(message), 0);
-    printf("Bytes sent: %d\n", bytes);
-    nn_shutdown(sock,0);
+
+    message_item request_chain;
+    setup_message(&request_chain);
+    strcpy(request_chain.toWhom, address);
+    strcpy(request_chain.message, message);
+    li_append(outbound_msg_queue,&request_chain, sizeof(request_chain));
 
     return 0;
 
@@ -334,11 +347,6 @@ int compare_length(char* input) {
 
 int send_chain(char* address) {
 
-    int sock = nn_socket(AF_SP, NN_PUSH);
-    assert (sock >= 0);
-    int timeout = 50;
-    assert (nn_setsockopt(sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
-    assert (nn_connect (sock, address) >= 0);
     printf("Sending blockchain existance to: %s, ", address);
     char message[2200] = {0};
 
@@ -349,14 +357,15 @@ int send_chain(char* address) {
         char block[2000] = {0};
         string_block(block,&temp->data);
         strcat(message, block);
-        
-        int bytes = nn_send (sock, message, strlen(message), 0);
-        printf("Bytes sent: %d\n", bytes);
+
+        message_item send_chain;
+        setup_message(&send_chain);
+        strcpy(send_chain.toWhom, address);
+        strcpy(send_chain.message, message);
+        li_append(outbound_msg_queue,&send_chain, sizeof(send_chain));
 
         temp = temp->next;
     }
-
-    nn_shutdown(sock,0);
 
     return 0;
 }
@@ -444,7 +453,7 @@ void process_message(const char* in_msg) {
     if(!strcmp(token, "B+"))
         chain_incoming(to_process + 3);
     if(!strcmp(token, "N"))
-        register_new_node_2(to_process + 2);
+        register_new_node(to_process + 2);
     if(!strcmp(token, "L"))
         compare_length(to_process + 2);
     if(!strcmp(token, "C"))
@@ -454,18 +463,54 @@ void process_message(const char* in_msg) {
 }
 
 
+
+//input-data is of type message_item struct
+void* process_outbound(list* in_list, li_node* input, void* data) {
+
+    if(input == NULL) return NULL;
+
+    //cast input data as message_item struct
+    message_item* our_message = (message_item*)input->data;
+
+    printf("Sending to: %s, ",our_message->toWhom);
+    assert (nn_connect (sock_out, our_message->toWhom) >= 0);
+    int bytes = nn_send (sock_out, our_message->message, strlen(our_message->message), 0);
+    printf("Bytes sent: %d\n", bytes);
+    nn_shutdown(sock_out, 0);
+
+    if(bytes > 0 || our_message->tries == 2) li_delete_node(in_list, input);
+    else our_message->tries++;
+
+    return NULL;
+}
+
 //Network interface function
 void* server() {
     
     printf("Blockchain in C Major: Server v0.1\n");
     printf("Node name: %s\n\n", node_name);
 
-    int sock_in = nn_socket (AF_SP, NN_PULL);
+
+    //Inbound socket
+    sock_in = nn_socket (AF_SP, NN_PULL);
     assert (sock_in >= 0);
     assert (nn_bind (sock_in, our_ip) >= 0);
-    int timeout = 200;
-    assert (nn_setsockopt (sock_in, NN_PULL, NN_RCVTIMEO, &timeout, sizeof (timeout)));
-    printf("Socket Ready!\n");
+    usleep(100000);
+    int timeout = 500;
+    assert (nn_setsockopt (sock_in, NN_SOL_SOCKET, NN_RCVTIMEO, &timeout, sizeof (timeout)) >= 0);
+    usleep(100000);
+
+    printf("Inbound Socket Ready!\n");
+
+    //Outbound socket
+    sock_out = nn_socket(AF_SP, NN_PUSH);
+    usleep(100000);
+    assert (sock_out >= 0);
+    timeout = 500;
+    assert (nn_setsockopt(sock_out, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
+    usleep(100000);
+
+    printf("Outbound Socket Ready!\n");
 
     char buf[1000] = {0};
 
@@ -473,6 +518,8 @@ void* server() {
         
         //Receive
         memset(buf, 0, sizeof(buf));
+        //printf("waiting for message...\n");
+
         int bytes = nn_recv(sock_in, buf, sizeof(buf), 0);
         if(bytes > 0) {
             printf("\nRecieved: \"%s\"\n", buf);
@@ -480,25 +527,26 @@ void* server() {
         }
 
         //Send
-        //sleep(1);
         //printf("sending out...\n");
-        //strli_foreach(outbound_msgs, send_node_msg);
+        li_foreach(outbound_msg_queue, process_outbound, NULL);
+        li_print(outbound_msg_queue, print_list);
+
+        
 
     }
-    
 
     return 0;
 }
 
 //Read configuration file
-int read_config2() {
+int read_config() {
     FILE* config = fopen("node.cfg", "r");
     if(config == NULL) return 0;
 
     char buffer[120] = {0};
     while (fgets(buffer, sizeof(buffer), config)) {
         if(buffer[strlen(buffer) -1] == '\n') buffer[strlen(buffer) -1] = 0;
-        li_append(other_nodes_2, buffer, strlen(buffer) + 1);
+        li_append(other_nodes, buffer, strlen(buffer) + 1);
     }
     fclose(config);
 
@@ -507,17 +555,22 @@ int read_config2() {
 
 void graceful_shutdown(int dummy) {
     printf("\nCommencing graceful shutdown!\n");
-    
-    li_discard(other_nodes_2);
+    li_discard(other_nodes);
     free(beaten);
     exit(0);
 }
 
-int send_out(char* address, char* message) {
+void* print_list(void* data) {
 
-    return 1;
+    message_item* item = (message_item*)data;
+
+    printf("- toWhom: %s, ", item->toWhom);
+    printf("Message: %s\n", item->message);
+
+    return NULL;
 
 }
+
 
 //Main function
 int main(int argc, char* argv[]) {
@@ -527,15 +580,12 @@ int main(int argc, char* argv[]) {
 
     //Create blockchain
     our_chain = new_chain();
-
-    //Beaten variable
     beaten = malloc(sizeof(int));
     *beaten = 0;
 
     //Create list of other nodes
-    other_nodes_2 = list_create();
-    read_config2();
-
+    other_nodes = list_create();
+    read_config();
 
     //Generate random node name
     srand(time(NULL));   // should only be called once
@@ -547,10 +597,20 @@ int main(int argc, char* argv[]) {
         strcpy(our_ip, "ipc:///tmp/pipeline_0.ipc");
     else
         strcpy(our_ip, argv[1]);
-    
+
+    //Create list of outbound msgs & add our ip to be sent to all nodes
+    outbound_msg_queue = list_create();
+    /*
+    message_item announcement;
+    setup_message(&announcement);
+    strcpy(announcement.toWhom, "allnodes");
+    strcpy(announcement.message, our_ip);
+    li_append(outbound_msg_queue,&announcement,sizeof(announcement));*/
+
     //Send out our existence
-    //strli_foreach(other_nodes,announce_existance);
-    li_foreach(other_nodes_2,announce_existance_2);
+    li_foreach(other_nodes,announce_existance, NULL);
+
+    li_print(outbound_msg_queue, print_list);
 
     //Reset node earnings
     node_earnings = 0;

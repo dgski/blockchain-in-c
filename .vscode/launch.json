@@ -21,7 +21,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/node",
-            "args": [],
+            "args": ["ipc:///tmp/pipeline_10.ipc"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
