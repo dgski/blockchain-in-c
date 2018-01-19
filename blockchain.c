@@ -39,6 +39,8 @@ blockchain* new_chain() {
 
 int discard_chain(blockchain* in_chain) {
 
+    if(in_chain == NULL) return 0;
+
     //Discard list of blocks in chain
     blink_discard_list(in_chain->head);
 
