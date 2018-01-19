@@ -30,7 +30,7 @@ int expected_length;
 pthread_t inbound_network_thread;
 pthread_t outbound_network_thread;
 pthread_t inbound_executor_thread;
-pthread_mutex_t outbound_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t our_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 char our_ip[100] = {0};
@@ -76,9 +76,9 @@ void* announce_length(list* in_list, li_node* in_item, void* data) {
     strcpy(chain_send.toWhom, data_string);
     strcpy(chain_send.message, message);
 
-    pthread_mutex_lock(&outbound_mutex);
+    pthread_mutex_lock(&our_mutex);
     li_append(outbound_msg_queue,&chain_send, sizeof(chain_send));
-    pthread_mutex_unlock(&outbound_mutex);
+    pthread_mutex_unlock(&our_mutex);
 
     free(data_string);
 
@@ -101,15 +101,15 @@ void* announce_existance(list* in_list, li_node* in_item, void* data) {
     strcpy(announcement.toWhom, data_string);
     strcpy(announcement.message, "N ");
     strcat(announcement.message, our_ip);
-    pthread_mutex_lock(&outbound_mutex);
+    pthread_mutex_lock(&our_mutex);
     li_append(outbound_msg_queue,&announcement,sizeof(announcement));
-    pthread_mutex_unlock(&outbound_mutex);
+    pthread_mutex_unlock(&our_mutex);
 
     return NULL;
 }
 
 
-//Continually searches for proper proof of work
+//Continually search for proper proof of work
 int mine() {
     sleep(2);
     printf("\nMining started.\n");
@@ -149,9 +149,6 @@ int mine() {
 
     }
 }
-
-
-
 
 
 //Insert transaction [sender receiver amount]
@@ -292,7 +289,7 @@ int compare_length(char* input) {
     char Whom[200];
     sscanf(input, "%d %s", &foreign_length, Whom);
 
-    if(foreign_length > our_chain->length || true) {
+    if(foreign_length > our_chain->length) {
         printf("Someone claims they are a winner!\n");
         expected_length = foreign_length;
         request_chain(Whom);
@@ -351,7 +348,6 @@ int chain_incoming(char* input) {
         return 0;
     }
 
-
     long the_proof;
     sscanf(proof,"%020ld",&the_proof);
 
@@ -363,7 +359,6 @@ int chain_incoming(char* input) {
     printf("Last Hash Length: %lu\n", strlen(foreign_chain->last_hash));
     printf("Last Hash: %s\n",foreign_chain->last_hash);
 
-
     if(valid_proof(foreign_chain->last_hash, the_proof)){
         printf("Valid.\n");
 
@@ -374,9 +369,6 @@ int chain_incoming(char* input) {
         //Add block and reset chain
         blink* a_block = append_new_block(foreign_chain, atoi(index), atoi(time),rec_trans, posts, atoi(trans_size), the_proof);
 
-
-        
-
         if((atoi(index)) > our_chain->length && (atoi(index) == expected_length)) {
 
             printf("\nComplete chain is verified and longer. Make that ours.\n");
@@ -385,7 +377,6 @@ int chain_incoming(char* input) {
             printf("\nABSORBED TOP BLOCK:\n");
             print_block(a_block,'-');
             printf(ANSI_COLOR_RESET);
-
 
             discard_chain(our_chain);
             our_chain = foreign_chain;
@@ -398,8 +389,6 @@ int chain_incoming(char* input) {
     else {
         printf("Invalid.\n");
     }
-
-
 
     return 0;
 }  
@@ -414,9 +403,7 @@ void process_message(const char* in_msg) {
     char* token = strtok(to_process," ");
     //printf("MESSAGE TYPE: %s\n", token);
 
-    printf("MESSAGE CONTENTS: %s\n", in_msg + 2);
-    printf("MESSAGE CONTENTS 2: %s\n", to_process + 2);
-
+    //printf("MESSAGE CONTENTS: %s\n", in_msg + 2);
 
     if(!strcmp(token, "T"))
         insert_trans(to_process + 2);
@@ -445,10 +432,11 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
 
     //Outbound socket
     sock_out = nn_socket(AF_SP, NN_PUSH);
+    usleep(50000);
     assert (sock_out >= 0);
     int timeout = 200;
     assert (nn_setsockopt(sock_out, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
-    usleep(100000);
+    usleep(50000);
 
 
     //cast input data as message_item struct
@@ -489,9 +477,9 @@ void* inbound_executor() {
     
     while(true) {
         usleep(100000);
-        pthread_mutex_lock(&outbound_mutex);
+        pthread_mutex_lock(&our_mutex);
         li_foreach(inbound_msg_queue, process_inbound, NULL);
-        pthread_mutex_unlock(&outbound_mutex);
+        pthread_mutex_unlock(&our_mutex);
     }
 
 }
@@ -530,9 +518,9 @@ void* in_server() {
         int bytes = nn_recv(sock_in, buf, sizeof(buf), 0);
         if(bytes > 0) {
             printf("\nRecieved %d bytes: \"%s\"\n", bytes, buf);
-            pthread_mutex_lock(&outbound_mutex);
+            pthread_mutex_lock(&our_mutex);
             li_append(inbound_msg_queue,buf,bytes);
-            pthread_mutex_unlock(&outbound_mutex);
+            pthread_mutex_unlock(&our_mutex);
         }
 
         
@@ -547,9 +535,9 @@ void* out_server() {
     while(true) {
         usleep(100000);
         //printf("Checking Outbound Queue:\n");
-        pthread_mutex_lock(&outbound_mutex);
+        pthread_mutex_lock(&our_mutex);
         li_foreach(outbound_msg_queue, process_outbound, NULL);
-        pthread_mutex_unlock(&outbound_mutex);
+        pthread_mutex_unlock(&our_mutex);
 
     }
 }
@@ -571,9 +559,15 @@ int read_config() {
 
 void graceful_shutdown(int dummy) {
     printf("\nCommencing graceful shutdown!\n");
+
+    //Discard lists
     li_discard(other_nodes);
     li_discard(outbound_msg_queue);
-    pthread_mutex_destroy(&outbound_mutex);
+    li_discard(inbound_msg_queue);
+
+    //Discard blockchains
+    
+    pthread_mutex_destroy(&our_mutex);
 
     nn_close(sock_in);
     nn_close(sock_out);
@@ -641,7 +635,7 @@ int main(int argc, char* argv[]) {
 
 
     //Listen and respond to network connections
-    pthread_mutex_t outbound_mutex = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_t our_mutex = PTHREAD_MUTEX_INITIALIZER;
     pthread_create(&inbound_network_thread, NULL, in_server, NULL);
 
     pthread_create(&outbound_network_thread, NULL, out_server, NULL);
