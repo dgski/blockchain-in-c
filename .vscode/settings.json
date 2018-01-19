@@ -12,6 +12,17 @@
         "ios": "c",
         "string": "cpp",
         "string_view": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "__split_buffer": "c",
+        "__tree": "c",
+        "bitset": "c",
+        "deque": "c",
+        "initializer_list": "c",
+        "list": "c",
+        "map": "c",
+        "queue": "c",
+        "utility": "c",
+        "__locale": "c",
+        "__string": "c"
     }
 }

@@ -15,7 +15,9 @@
 
 #define DEBUG 0
 
+/////////////////////////////////////////////////////
 //Global variables
+/////////////////////////////////////////////////////
 char node_name[60];
 unsigned int node_earnings;
 int* beaten;
@@ -24,29 +26,33 @@ blockchain* our_chain;
 blockchain* foreign_chain;
 
 int expected_length;
+
 pthread_t inbound_network_thread;
 pthread_t outbound_network_thread;
+pthread_t inbound_executor_thread;
+pthread_mutex_t outbound_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 char our_ip[100] = {0};
 
 list* other_nodes;
-list* outbound_msg_queue; //holds message structs
+list* outbound_msg_queue; //holds outbound message structs
+list* inbound_msg_queue; //holds recieved messages to execute
 
 int sock_in;
 int sock_out;
 
 
+
 //Empty message
 void setup_message(message_item* in_message) {
     
-    memset(in_message->message, 0, sizeof(in_message->message));
     in_message->tries = 0;
     memset(in_message->toWhom, 0, sizeof(in_message->toWhom));
     return;
 }
 
-
-//Send out current chain length
+//Send out current chain's length to everyone
 void* announce_length(list* in_list, li_node* in_item, void* data) {
 
     char* data_string = malloc(in_item->size);
@@ -57,14 +63,6 @@ void* announce_length(list* in_list, li_node* in_item, void* data) {
         return NULL;
     }
 
-    int sock = nn_socket(AF_SP, NN_PUSH);
-
-    assert (sock >= 0);
-    int timeout = 50;
-    assert (nn_setsockopt(sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
-    assert (nn_connect (sock, data_string) >= 0);
-
-    printf("Announcing chain length to: %s, ", data_string);
     char message[2000];
     strcpy(message, "L ");
     char length_buffer[21];
@@ -72,45 +70,22 @@ void* announce_length(list* in_list, li_node* in_item, void* data) {
     strcat(message, length_buffer);
     strcat(message, " ");
     strcat(message, our_ip);
-    int bytes = nn_send (sock, message, strlen(message), 0);
-    printf("Bytes sent: %d\n", bytes);
-    nn_shutdown(sock,0);
+
+    message_item chain_send;
+    setup_message(&chain_send);
+    strcpy(chain_send.toWhom, data_string);
+    strcpy(chain_send.message, message);
+
+    pthread_mutex_lock(&outbound_mutex);
+    li_append(outbound_msg_queue,&chain_send, sizeof(chain_send));
+    pthread_mutex_unlock(&outbound_mutex);
 
     free(data_string);
 
     return NULL;
 }
 
-//Send new block block to other nodes
-void* announce_block(list* in_list, li_node* in_item, void* data) {
-
-    char* data_string = malloc(in_item->size);
-    memcpy(data_string,in_item->data,in_item->size);
-
-    if(!strcmp(data_string, our_ip)){
-        free(data_string);
-        return NULL;
-    } 
-
-    int sock = nn_socket(AF_SP, NN_PUSH);
-    assert (sock >= 0);
-    int timeout = 50;
-    assert (nn_setsockopt(sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
-    assert (nn_connect (sock, data_string) >= 0);
-
-    printf("Announcing to: %s, ", data_string);
-    char message[2000];
-    strcpy(message, "B> ");
-    strcat(message, our_chain->last_block);
-    int bytes = nn_send (sock, message, strlen(message), 0);
-    printf("Bytes sent: %d\n", bytes);
-    nn_shutdown(sock,0);
-
-    free(data_string);
-
-    return NULL;
-}
-
+//Send out your own ip address to everyone in other_nodes list
 void* announce_existance(list* in_list, li_node* in_item, void* data) {
     
     char* data_string = malloc(in_item->size);
@@ -126,24 +101,9 @@ void* announce_existance(list* in_list, li_node* in_item, void* data) {
     strcpy(announcement.toWhom, data_string);
     strcpy(announcement.message, "N ");
     strcat(announcement.message, our_ip);
+    pthread_mutex_lock(&outbound_mutex);
     li_append(outbound_msg_queue,&announcement,sizeof(announcement));
-
-     /*
-    int sock = nn_socket(AF_SP, NN_PUSH);
-    assert (sock >= 0);
-    int timeout = 50;
-    assert (nn_setsockopt(sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
-    assert (nn_connect (sock, data_string) >= 0);
-    printf("Announcing existance to: %s, ", data_string);
-    char message[2000];
-    strcpy(message, "N ");
-    strcat(message, our_ip);
-    int bytes = nn_send (sock, message, strlen(message), 0);
-    printf("Bytes sent: %d\n", bytes);
-    nn_shutdown(sock,0);
-
-    free(data_string);*/
-
+    pthread_mutex_unlock(&outbound_mutex);
 
     return NULL;
 }
@@ -167,10 +127,7 @@ int mine() {
         unsigned int time_2 = time(NULL);
 
         if(result > 0) {
-
-            //printf("PROOF OF WORK FOUND: %d\n", result);
             printf(ANSI_COLOR_GREEN);
-
             printf("\nMINED: %.4f min(s)\n", (time_2 - time_1)/60.0);
 
             our_chain->last_proof_of_work = result;
@@ -180,11 +137,6 @@ int mine() {
             print_block(a_block,'-');
 
             printf(ANSI_COLOR_RESET);
-            //char block_buffer[BLOCK_STR_SIZE];
-            //string_block(block_buffer, &a_block->data);
-            //printf("%s\n", block_buffer);
-            //strli_foreach(other_nodes,announce_block); //Block announcement
-            //strli_foreach(other_nodes,announce_length);
             li_foreach(other_nodes,announce_length, NULL);
 
 
@@ -290,13 +242,14 @@ void register_new_node(char* input) {
     printf("Registering New Node...");
     if(li_search(other_nodes,NULL,input,strlen(input) + 1)) {
         printf(" Already registered.");
-        return;
+    }
+    else {
+        li_append(other_nodes, input, strlen(input) + 1);
+        printf("Added '%s'\n", input);
     }
 
-    li_append(other_nodes, input, strlen(input) + 1);
-    printf("Added '%s'\n", input);
 
-    printf("Sending chain length to: %s, ", input);
+    printf("Sending chain length to: %s\n ", input);
     char message[2000];
     strcpy(message, "L ");
     char length_buffer[21];
@@ -309,7 +262,9 @@ void register_new_node(char* input) {
     setup_message(&chain_send);
     strcpy(chain_send.toWhom, input);
     strcpy(chain_send.message, message);
+    
     li_append(outbound_msg_queue,&chain_send, sizeof(chain_send));
+
 }
 
 int request_chain(char* address) {
@@ -323,6 +278,7 @@ int request_chain(char* address) {
     setup_message(&request_chain);
     strcpy(request_chain.toWhom, address);
     strcpy(request_chain.message, message);
+    
     li_append(outbound_msg_queue,&request_chain, sizeof(request_chain));
 
     return 0;
@@ -349,7 +305,8 @@ int compare_length(char* input) {
 
 int send_chain(char* address) {
 
-    printf("Sending blockchain existance to: %s, ", address);
+    if(strlen(address) > 120) return 1;
+    printf("Sending blockchain to: %s, ", address);
     char message[2200] = {0};
 
     blink* temp = our_chain->head;
@@ -360,10 +317,12 @@ int send_chain(char* address) {
         string_block(block,&temp->data);
         strcat(message, block);
 
+
         message_item the_chain;
         setup_message(&the_chain);
         strcpy(the_chain.toWhom, address);
         strcpy(the_chain.message, message);
+        
         li_append(outbound_msg_queue,&the_chain, sizeof(the_chain));
 
         temp = temp->next;
@@ -395,20 +354,28 @@ int chain_incoming(char* input) {
 
     long the_proof;
     sscanf(proof,"%020ld",&the_proof);
-    
-    
+
+    if(foreign_chain == NULL) return 0;
+
+    printf("Index Recieved: %d\n",atoi(index));
+    printf("Expected length: %d\n",expected_length);
+    printf("Our length: %d\n",our_chain->length);
+    printf("Last Hash Length: %lu\n", strlen(foreign_chain->last_hash));
+    printf("Last Hash: %s\n",foreign_chain->last_hash);
+
+
     if(valid_proof(foreign_chain->last_hash, the_proof)){
         printf("Valid.\n");
 
         char posts[] = {};
         transaction rec_trans[20] = {0};
         extract_transactions(rec_trans, transactions);
+        
         //Add block and reset chain
         blink* a_block = append_new_block(foreign_chain, atoi(index), atoi(time),rec_trans, posts, atoi(trans_size), the_proof);
-        printf(ANSI_COLOR_CYAN);
-        //printf("\nVerified Foreign Block with index %d.\n", atoi(index));
-        //print_block(a_block,'-');
-        printf(ANSI_COLOR_RESET);
+
+
+        
 
         if((atoi(index)) > our_chain->length && (atoi(index) == expected_length)) {
 
@@ -428,6 +395,9 @@ int chain_incoming(char* input) {
 
         }
     }
+    else {
+        printf("Invalid.\n");
+    }
 
 
 
@@ -444,7 +414,9 @@ void process_message(const char* in_msg) {
     char* token = strtok(to_process," ");
     //printf("MESSAGE TYPE: %s\n", token);
 
-    //printf("MESSAGE CONTENTS: %s\n", in_msg + 2);
+    printf("MESSAGE CONTENTS: %s\n", in_msg + 2);
+    printf("MESSAGE CONTENTS 2: %s\n", to_process + 2);
+
 
     if(!strcmp(token, "T"))
         insert_trans(to_process + 2);
@@ -476,6 +448,8 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
     assert (sock_out >= 0);
     int timeout = 200;
     assert (nn_setsockopt(sock_out, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
+    usleep(100000);
+
 
     //cast input data as message_item struct
     message_item* our_message = (message_item*)input->data;
@@ -486,10 +460,40 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
     printf("Bytes sent: %d\n", bytes);
     nn_close(sock_out);
 
-    if(bytes > 0 || our_message->tries == 2) li_delete_node(in_list, input);
+    if(bytes > 0 || our_message->tries == 0) li_delete_node(in_list, input);
     else our_message->tries++;
 
     return NULL;
+}
+
+//input-data is of type message_item struct
+void* process_inbound(list* in_list, li_node* input, void* data) {
+
+    if(input == NULL) return NULL;
+
+    //get input data as char*
+    char* the_message = malloc(input->size + 1);
+    memset(the_message, 0, input->size + 1);
+    memcpy(the_message,input->data,input->size);
+    process_message(the_message);
+    free(the_message);
+
+    //Delete node
+    li_delete_node(in_list, input);
+
+    return NULL;
+}
+
+
+void* inbound_executor() {
+    
+    while(true) {
+        usleep(100000);
+        pthread_mutex_lock(&outbound_mutex);
+        li_foreach(inbound_msg_queue, process_inbound, NULL);
+        pthread_mutex_unlock(&outbound_mutex);
+    }
+
 }
 
 //Network interface function
@@ -502,25 +506,33 @@ void* in_server() {
     sock_in = nn_socket (AF_SP, NN_PULL);
     assert (sock_in >= 0);
     assert (nn_bind (sock_in, our_ip) >= 0);
-    int timeout = -1;
-    assert (nn_setsockopt (sock_in, NN_SOL_SOCKET, NN_RCVTIMEO, &timeout, sizeof (timeout)) >= 0);
+    //int timeout = 500;
+    //assert (nn_setsockopt (sock_in, NN_SOL_SOCKET, NN_RCVTIMEO, &timeout, sizeof (timeout)) >= 0);
 
     printf("Inbound Socket Ready!\n");
 
-    
-
-    char buf[1000] = {0};
+    char buf[2000] = {0};
 
     while(true) {
         
         //Receive
-        memset(buf, 0, sizeof(buf));
-        printf("waiting for message...\n");
+        //memset(buf, 0, sizeof(buf));
+        //printf("waiting for message...\n");
+        /*
+        struct nn_polld pfd[2];
+        pfd.fd = sock_in;
+        pfd.events = NN_POLLIN;
+        int rc = nn_poll(pfd,2,200);
+        printf("NN_POLL RESULT: %d\n", rc);
+        */
 
+        usleep(10000);
         int bytes = nn_recv(sock_in, buf, sizeof(buf), 0);
         if(bytes > 0) {
-            printf("\nRecieved: \"%s\"\n", buf);
-            process_message(buf);
+            printf("\nRecieved %d bytes: \"%s\"\n", bytes, buf);
+            pthread_mutex_lock(&outbound_mutex);
+            li_append(inbound_msg_queue,buf,bytes);
+            pthread_mutex_unlock(&outbound_mutex);
         }
 
         
@@ -533,9 +545,12 @@ void* in_server() {
 void* out_server() {
 
     while(true) {
-        sleep(1);
-        printf("checking message queue:\n");
+        usleep(100000);
+        //printf("Checking Outbound Queue:\n");
+        pthread_mutex_lock(&outbound_mutex);
         li_foreach(outbound_msg_queue, process_outbound, NULL);
+        pthread_mutex_unlock(&outbound_mutex);
+
     }
 }
 
@@ -557,11 +572,16 @@ int read_config() {
 void graceful_shutdown(int dummy) {
     printf("\nCommencing graceful shutdown!\n");
     li_discard(other_nodes);
+    li_discard(outbound_msg_queue);
+    pthread_mutex_destroy(&outbound_mutex);
+
+    nn_close(sock_in);
+    nn_close(sock_out);
     free(beaten);
     exit(0);
 }
 
-void* print_list(void* data) {
+void* print_queue(void* data) {
 
     message_item* item = (message_item*)data;
 
@@ -611,14 +631,23 @@ int main(int argc, char* argv[]) {
     //Send out our existence
     li_foreach(other_nodes,announce_existance, NULL);
 
-    li_print(outbound_msg_queue, print_list);
+    li_print(outbound_msg_queue, print_queue);
 
     //Reset node earnings
     node_earnings = 0;
 
+    //Create execution queue
+    inbound_msg_queue = list_create();
+
+
     //Listen and respond to network connections
+    pthread_mutex_t outbound_mutex = PTHREAD_MUTEX_INITIALIZER;
     pthread_create(&inbound_network_thread, NULL, in_server, NULL);
+
     pthread_create(&outbound_network_thread, NULL, out_server, NULL);
+
+    pthread_create(&inbound_executor_thread, NULL, inbound_executor, NULL);
+
 
 
 

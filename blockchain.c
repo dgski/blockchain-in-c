@@ -443,7 +443,8 @@ void blink_print_list(blink* head)
 }
 
 void blink_discard_list(blink* head)
-{
+{   
+    if(head == NULL) return;
     //Single element sized list
     if(head->next == NULL)
     {
