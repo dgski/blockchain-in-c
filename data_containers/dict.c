@@ -27,8 +27,9 @@ bt_node* bt_node_search(bt_node* head, char* key) {
 
     if(head == NULL || key == NULL) return NULL;
 
-    if(strcmp(head->key,key) == 0)
+    if(!strcmp(head->key,key)) {
         return head;
+    }
 
     if(strcmp(head->key, key) < 0) {
         if(head->right == NULL)
@@ -149,6 +150,10 @@ int dict_insert(dict* in_dict, char* in_key, void* in_data, size_t in_size) {
     bt_node* temp = bt_node_search(in_dict->head, in_key);
 
     if(!strcmp(temp->key, in_key)) {
+        free(temp->data);
+        temp->data = malloc(in_size);
+        temp->size = in_size;
+        memcpy(temp->data,in_data, in_size);
         return 0;
     }
     if(strcmp(temp->key, in_key) < 0) {
@@ -169,8 +174,13 @@ int dict_insert(dict* in_dict, char* in_key, void* in_data, size_t in_size) {
 void* dict_access(dict* in_dict, char* in_key) {
 
     bt_node* temp = bt_node_search(in_dict->head, in_key);
-    if(!strcmp(temp->key, in_key))
+    if(temp == NULL)
+        return NULL;
+
+    if(!strcmp(temp->key, in_key)) {
+        int* info = (int*)temp->data;
         return temp->data;
+    }
     else
         return NULL;
 }

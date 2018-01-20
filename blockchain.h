@@ -19,7 +19,6 @@
 
 
 
-
 //Transaction structure
 typedef struct transaction {
     char sender[PUBLIC_ADDRESS_SIZE];
@@ -58,6 +57,8 @@ typedef struct blockchain {
     int trans_index;
     unsigned int length;
 
+    dict* quickledger;
+
 } blockchain;
 
 //Chain functions
@@ -72,7 +73,7 @@ blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int i
 void print_block(blink* in_block, char separator);
 char* string_block(char* output, block* in_block);
 char* hash_block(block* in_block);
-int extract_transactions(transaction* trans_array, char* in_trans);
+int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in_trans);
 
 
 //Link functions
@@ -87,7 +88,7 @@ void blink_discard_list(blink* head);
 //Work functions
 bool valid_proof( char* last_hash, long proof);
 long proof_of_work(int* beaten, char* last_hash);
-bool verify_transaction(const char* input, char* sender, char* recipient, char* amount, char* signature);
+bool verify_signiture(const char* input, char* sender, char* recipient, char* amount, char* signature);
 
 
 

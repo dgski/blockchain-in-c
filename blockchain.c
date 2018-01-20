@@ -32,6 +32,8 @@ blockchain* new_chain() {
     in_chain->trans_index = 0;
     in_chain->length = 0;
 
+    in_chain->quickledger = dict_create();
+
     char block[BLOCK_STR_SIZE];
     string_block(block,&(in_chain->head->data));
     strcpy(in_chain->last_block,block);
@@ -47,6 +49,9 @@ int discard_chain(blockchain* in_chain) {
 
     //Discard list of blocks in chain
     blink_discard_list(in_chain->head);
+
+    //Discard quickledger
+    dict_discard(in_chain->quickledger);
 
     //Free memory in struct
     free(in_chain);
@@ -67,7 +72,26 @@ void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, 
     strcpy(in_chain->trans_list[index].signature, in_signature);
     in_chain->trans_list[index].amount = in_amount;
 
-    //printf("TRANCTION DONE\n");
+    //Update quick ledger
+    //temp fix for creation transactions
+    if(strcmp(in_sender, in_recipient)) {
+        int* sender_funds = (int*)dict_access(in_chain->quickledger, in_sender);
+        int sender_future_balance = *sender_funds - in_amount;
+        dict_insert(in_chain->quickledger, in_sender, &sender_future_balance, sizeof(sender_funds));
+    }
+
+    void* recipient_funds = dict_access(in_chain->quickledger, in_recipient);
+    int recipient_future_balance = 0;
+    if(recipient_funds != NULL)
+        recipient_future_balance = *((int*)recipient_funds);
+
+    recipient_future_balance += in_amount;
+    dict_insert(in_chain->quickledger, in_recipient, &recipient_future_balance, sizeof(recipient_future_balance));
+    
+     
+
+
+
 
 }
 
@@ -209,8 +233,8 @@ char* string_block(char* output, block* in_block) {
 
 
 
-int extract_transactions(transaction* trans_array, char* in_trans) {
-    
+int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in_trans) {
+ 
     char* trans_strings[20] = {0};
 
     char* pointer = strtok(in_trans,"-");
@@ -230,6 +254,7 @@ int extract_transactions(transaction* trans_array, char* in_trans) {
     char* amount;
 
     for(int i = 0; trans_strings[i] != 0; i++) {
+
         sender = strtok(trans_strings[i],":");
         //printf("sender: %s\n", sender);
         reciever = strtok(NULL, ":");
@@ -239,6 +264,27 @@ int extract_transactions(transaction* trans_array, char* in_trans) {
         strcpy(trans_array[i].sender, sender);
         strcpy(trans_array[i].recipient, reciever);
         trans_array[i].amount = atoi(amount);
+
+
+        //Update quick ledger
+        //temp fix for creation transactions
+        if(strcmp(sender, reciever)) {
+            int* sender_funds = (int*)dict_access(in_chain->quickledger, sender);
+            int sender_future_balance = *sender_funds - atoi(amount);
+            dict_insert(in_chain->quickledger, sender, &sender_future_balance, sizeof(sender_funds));
+        }
+
+        void* recipient_funds = dict_access(in_chain->quickledger, reciever);
+        int recipient_future_balance = 0;
+        if(recipient_funds != NULL)
+            recipient_future_balance = *((int*)recipient_funds);
+
+        recipient_future_balance += atoi(amount);
+        dict_insert(in_chain->quickledger, reciever, &recipient_future_balance, sizeof(recipient_future_balance));
+
+
+
+
     }
 
     return 0;
@@ -276,7 +322,7 @@ bool valid_proof(char* last_hash, long proof) {
     unsigned char hash_value[HASH_SIZE];
     hash256(hash_value,guess);
 
-    return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' /*&& (hash_value[3] > 60 && hash_value[3] < 127)*/);
+    return (hash_value[0] == '0' && hash_value[1] == '0' /*&& hash_value[2] == '0' && (hash_value[3] > 60 && hash_value[3] < 127)*/);
 }
 
 long proof_of_work(int* beaten, char* last_hash) {
@@ -301,7 +347,7 @@ long proof_of_work(int* beaten, char* last_hash) {
     return proof;
 }
 
-bool verify_transaction(const char* input, char* sender, char* recipient, char* amount, char* signature) {
+bool verify_signiture(const char* input, char* sender, char* recipient, char* amount, char* signature) {
     
     char data[1500] = {0};
 

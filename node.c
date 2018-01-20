@@ -13,7 +13,7 @@
 #include "data_containers/linked_list.h"
 #include "node.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #define MESSAGE_LENGTH 2000
 
 /////////////////////////////////////////////////////
@@ -52,6 +52,15 @@ int sock_out;
 /////////////////////////////////////////////////////
 //FUNCTIONS
 /////////////////////////////////////////////////////
+int print_balance(bt_node* current_node) {
+    
+    int* balance = current_node->data;
+    printf("%s : %d\n", current_node->key, *balance);
+    return 1;
+}
+
+
+
 
 //Continually search for proper proof of work
 int mine() {
@@ -81,12 +90,22 @@ int mine() {
 
             printf(ANSI_COLOR_RESET);
             li_foreach(other_nodes,announce_length, NULL);
+
             }
         else {
             printf("Abandoning our in-progress block.\n");
             *beaten = 0;
         }
-        printf("\nTotal Node Earnings: %d noins\n", node_earnings);
+        int our_earnings = 0;
+        void* our_ledger_earnings = dict_access(our_chain->quickledger,node_name);
+        if(our_ledger_earnings != NULL)
+            our_earnings += *((int*)our_ledger_earnings);
+
+
+        printf("\nQUICKLEDGER BALANCES:\n");
+            dict_foreach(our_chain->quickledger, print_balance, NULL);
+        
+        printf("\nTotal Node Earnings: %d noins\n", our_earnings);
 
     }
 }
@@ -161,10 +180,18 @@ int insert_trans(char* input) {
     char* signature = strtok(NULL, " ");
 
     //Check if user has enough in quick ledger
-    //Checking quickledger....
+    void* sender_balance = dict_access(our_chain->quickledger, sender);
+
+    if(sender_balance == NULL || (int)sender_balance < atoi(amount)) {
+        printf("Insufficient Funds.\n");
+        return 0;
+    }
+
+
+
 
     //Check if transaction is signed
-    if(!verify_transaction(input,sender, recipient, amount, signature))
+    if(!verify_signiture(input,sender, recipient, amount, signature))
         return 0;
 
     printf("\nInserting.\n");
@@ -192,7 +219,7 @@ void register_new_node(char* input) {
     
     printf("Registering New Node...");
     if(li_search(other_nodes,NULL,input,strlen(input) + 1)) {
-        printf(" Already registered.");
+        printf(" Already registered. ");
     }
     else {
         li_append(other_nodes, input, strlen(input) + 1);
@@ -321,9 +348,9 @@ int verify_foreign_block(char* input) {
 
         char posts[] = {};
         transaction rec_trans[20] = {0};
-        extract_transactions(rec_trans, transactions);
+        extract_transactions(foreign_chain, rec_trans, transactions);
         
-        //Add block and reset chain
+        //Add block
         blink* a_block = append_new_block(foreign_chain, atoi(index), atoi(time),rec_trans, posts, atoi(trans_size), the_proof);
 
         if((atoi(index)) > our_chain->length && (atoi(index) == expected_length)) {
@@ -340,7 +367,6 @@ int verify_foreign_block(char* input) {
             foreign_chain = NULL;
             
             *beaten = 1;
-
         }
     }
     else {
@@ -452,11 +478,9 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
     if(input == NULL) return NULL;
 
     sock_out = nn_socket(AF_SP, NN_PUSH);
-    usleep(50000);
     assert (sock_out >= 0);
     int timeout = 100;
     assert (nn_setsockopt(sock_out, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
-    usleep(50000);
 
     message_item* our_message = (message_item*)input->data;
 
@@ -469,7 +493,7 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
     printf("Bytes sent: %d\n", bytes);
     nn_close(sock_out);
 
-    if(bytes > 0 || our_message->tries == 2) li_delete_node(in_list, input);
+    if(bytes > 0 || our_message->tries == 0) li_delete_node(in_list, input);
     else our_message->tries++;
 
     return NULL;

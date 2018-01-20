@@ -35,6 +35,8 @@ void process_message(const char* in_msg);
 int read_config();
 void graceful_shutdown(int dummy);
 void setup_message(message_item* in_message);
+int print_balance(bt_node* current_node);
+
 
 
 
