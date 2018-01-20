@@ -15,20 +15,20 @@
 #include "client_queue.h"
 #include "nanomsg/include/nn.h"
 #include "nanomsg/include/pipeline.h"
-#include "data_containers/linked_list_string.h"
+#include "data_containers/linked_list.h"
 #include "hash.h"
 
 
 transaction_queue*  main_queue;
 pthread_t network_thread;
-strlist* other_nodes;
+list* other_nodes2;
 
 RSA* your_keys;
 char* pub_key;
 char* pri_key;
 
 
-void* send_new(c_transaction* in_trans) {
+void* send_new2(c_transaction* in_trans) {
     if(in_trans->status == 0) {
 
         int sock_out = nn_socket (AF_SP, NN_PUSH);
@@ -39,12 +39,17 @@ void* send_new(c_transaction* in_trans) {
 
 
         printf("\nSending: %s\n", in_trans->message);
-        strli_node* current = other_nodes->head;
+        li_node* current = other_nodes2->head;
 
-        for(int i = 0; i < other_nodes->length; i++) {
-            int eid = nn_connect (sock_out, current->value); 
+        for(int i = 0; i < other_nodes2->length; i++) {
+
+            char* ip_address = malloc(current->size) + 1;
+            memcpy(ip_address,current->data,current->size);
+            ip_address[current->size] = '\0';
+
+            int eid = nn_connect (sock_out, ip_address); 
             assert(eid >= 0);
-            printf("Announcing to: %s, ", current->value);
+            printf("Announcing to: %s, ", ip_address);
             int bytes = nn_send (sock_out, in_trans->message, strlen(in_trans->message), 0);
             printf("Bytes sent: %d\n", bytes);
             current = current->next;
@@ -72,7 +77,7 @@ void* check_network(){
     
     while(true) {
         //1. Send new transactions to nodes
-        queue_map(main_queue, send_new);
+        queue_map(main_queue, send_new2);
         //2. Request blockchain status of transactions
         
         //3. Recieve new data
@@ -183,7 +188,7 @@ int message_signature(char* output, char* message, RSA* keypair) {
 
     return 1;
 }
-
+/*
 void post_music(char* input) {
 
     char note[3] = {0};
@@ -243,7 +248,7 @@ void post_music(char* input) {
 
 
 
-}
+}*/
 
 
 void post_transaction(char* input) {
@@ -301,14 +306,14 @@ void post_transaction(char* input) {
 }
 
 //Read configuration file
-int read_config() {
+int read_config2() {
     FILE* config = fopen("node.cfg", "r");
     if(config == NULL) return 0;
 
     char buffer[120] = {0};
     while (fgets(buffer, sizeof(buffer), config)) {
         if(buffer[strlen(buffer) -1] == '\n') buffer[strlen(buffer) -1] = 0;
-        strli_append(other_nodes, buffer);
+        li_append(other_nodes2, buffer, strlen(buffer) + 1);
     }
     fclose(config);
 
@@ -357,8 +362,9 @@ int main(void) {
     printf("Blockchain in C: Client v0.1 by DG\n'h' for help/commandlist\n");
     char buffer[120] = {0};
     main_queue = new_queue();
-    other_nodes = create_strlist();
-    read_config();
+    other_nodes2 = list_create();
+    //read_config();
+    read_config2();
 
     //Create Keys
     create_keys();
@@ -389,7 +395,7 @@ int main(void) {
         else if(buffer[0] == 'n')
             post_transaction(buffer);
         else if(buffer[0] == 'p')
-            post_music(buffer);
+            ; //post_music(buffer);
         else if( !strcmp("", buffer))
             ;
         else
