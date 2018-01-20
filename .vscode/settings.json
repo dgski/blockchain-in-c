@@ -23,6 +23,7 @@
         "queue": "c",
         "utility": "c",
         "__locale": "c",
-        "__string": "c"
+        "__string": "c",
+        "dict.h": "c"
     }
 }

@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include "data_containers/dict.h"
 
 #define BLOCK_STR_SIZE 1572
 #define BLOCK_DATA_SIZE 8
@@ -49,11 +50,14 @@ typedef struct blockchain {
     blink* head;
     char last_block[BLOCK_STR_SIZE];
     char last_hash[HASH_HEX_SIZE];
+
     transaction trans_list[TRANS_LIST_SIZE];
+
     char new_posts[BLOCK_DATA_SIZE];
     long last_proof_of_work;
     int trans_index;
     unsigned int length;
+
 } blockchain;
 
 //Chain functions

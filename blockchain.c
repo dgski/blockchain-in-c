@@ -10,6 +10,7 @@
 #include "blockchain.h"
 #include "hash.h"
 
+
 //Create new Blockchain
 blockchain* new_chain() {
 
@@ -30,9 +31,12 @@ blockchain* new_chain() {
     
     in_chain->trans_index = 0;
     in_chain->length = 0;
+
     char block[BLOCK_STR_SIZE];
     string_block(block,&(in_chain->head->data));
     strcpy(in_chain->last_block,block);
+
+
 
     return in_chain;
 }

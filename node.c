@@ -42,6 +42,7 @@ list* other_nodes;
 list* outbound_msg_queue; //holds outbound message structs
 list* inbound_msg_queue; //holds recieved char* messages to execute
 
+
 //Sockets
 int sock_in;
 int sock_out;
