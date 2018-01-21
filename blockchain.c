@@ -34,6 +34,8 @@ blockchain* new_chain() {
 
     in_chain->quickledger = dict_create();
 
+    in_chain->total_currency = 0;
+    
     char block[BLOCK_STR_SIZE];
     string_block(block,&(in_chain->head->data));
     strcpy(in_chain->last_block,block);
@@ -117,6 +119,9 @@ blink* append_current_block(blockchain* in_chain, long in_proof) {
     memset(in_chain->trans_list,0, sizeof(in_chain->trans_list));
     in_chain->last_proof_of_work = in_proof;
     in_chain->trans_index = 0;
+
+    if(in_chain->total_currency < CURRENCY_CAP)
+        in_chain->total_currency += CURRENCY_SPEED;
 
     //Register as latest block
     char block_str[BLOCK_STR_SIZE];
@@ -273,6 +278,20 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in
             int sender_future_balance = *sender_funds - atoi(amount);
             dict_insert(in_chain->quickledger, sender, &sender_future_balance, sizeof(sender_funds));
         }
+
+        if(!strcmp(sender, reciever) && in_chain->total_currency > CURRENCY_CAP && atoi(amount) != 0) {
+            return 1;
+        }
+
+        if(!strcmp(sender, reciever) && atoi(amount) != CURRENCY_SPEED) {
+            return 1;
+        }
+
+
+        in_chain->total_currency += CURRENCY_SPEED;
+        
+        
+
 
         void* recipient_funds = dict_access(in_chain->quickledger, reciever);
         int recipient_future_balance = 0;

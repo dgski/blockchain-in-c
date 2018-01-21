@@ -8,6 +8,8 @@
 #define HASH_HEX_SIZE 65
 #define PUBLIC_ADDRESS_SIZE 500
 #define GUESS_SIZE 200
+#define CURRENCY_CAP 10
+#define CURRENCY_SPEED 2
 
 #define ANSI_COLOR_GREEN   "\x1b[32m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
@@ -55,6 +57,7 @@ typedef struct blockchain {
     long last_proof_of_work;
     int trans_index;
     unsigned int length;
+    unsigned int total_currency;
 
     dict* quickledger;
 

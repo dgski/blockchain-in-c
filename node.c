@@ -81,6 +81,12 @@ int mine() {
             char buffer[120] = {0};
             fgets(buffer, sizeof(buffer), stdin);
         }
+
+        if(our_chain->total_currency < CURRENCY_CAP)
+            new_transaction(our_chain,node_name,node_name, CURRENCY_SPEED, "hello");
+        else
+            new_transaction(our_chain,node_name,node_name, 0, "hello");
+
         
         unsigned int time_1 = time(NULL);
         result = proof_of_work(beaten, our_chain->last_hash);
@@ -91,8 +97,8 @@ int mine() {
             printf("\nMINED: %.4f min(s)\n", (time_2 - time_1)/60.0);
 
             our_chain->last_proof_of_work = result;
-            new_transaction(our_chain,node_name,node_name, 2, "hello");
-            node_earnings += 2;
+            
+
             blink* a_block = append_current_block(our_chain, our_chain->last_proof_of_work);
             print_block(a_block,'-');
 
@@ -102,6 +108,8 @@ int mine() {
             }
         else {
             printf("Abandoning our in-progress block.\n");
+            memset(our_chain->trans_list,0, sizeof(our_chain->trans_list));
+            our_chain->trans_index = 0;
             *beaten = 0;
         }
         int our_earnings = 0;
@@ -114,6 +122,8 @@ int mine() {
             dict_foreach(our_chain->quickledger, print_balance, NULL);
         
         printf("\nTotal Node Earnings: %d noins\n", our_earnings);
+        printf("Total Currency in Circulation: %d noins\n\n", our_chain->total_currency);
+
 
     }
 }
@@ -300,36 +310,6 @@ int send_our_chain(char* address) {
     if(our_chain->head == NULL) return 0;
     blink* temp = our_chain->head;
 
-    for(int i = 0; i < our_chain->length + 1; i++) {
-
-        strcpy(message, "B+ ");
-        char block[2000] = {0};
-        string_block(block,&temp->data);
-        strcat(message, block);
-
-        message_item the_chain;
-        setup_message(&the_chain);
-        strcpy(the_chain.toWhom, address);
-        strcpy(the_chain.message, message);
-        
-        li_append(outbound_msg_queue,&the_chain, sizeof(the_chain));
-
-        temp = temp->next;
-    }
-
-    return 1;
-}
-
-//Send out our complete chain as block messages
-int send_our_chain2(char* address) {
-
-    if(strlen(address) > 120) return 0;
-    printf("Sending blockchain to: %s, ", address);
-    char message[MESSAGE_LENGTH];
-
-    if(our_chain->head == NULL) return 0;
-    blink* temp = our_chain->head;
-
     char rand_chain_id[60];
     int r = rand();   
     sprintf(rand_chain_id, "CHIN%010d.", r);
@@ -358,71 +338,23 @@ int send_our_chain2(char* address) {
     return 1;
 }
 
-int verify_foreign_block(char* input) {
+int prune_chains(bt_node* current_node) {
 
-    char f_block[MESSAGE_LENGTH] = {0};
-    strcpy(f_block, input);
+    alt_chain* temp = current_node->data;
+    printf("LAST UPDATED TIME: %u\n", temp->last_time);
+    printf("CURRENT TIME: %ld\n", time(NULL));
+    printf("DIFFERENCE: %ld\n", time(NULL) - temp->last_time);
 
-    char* index = strtok(f_block,".");
-    char* time = strtok(NULL, ".");
-    char* transactions = strtok(NULL, ".");
-    char* trans_size = strtok(NULL, ".");
-    char* proof = strtok(NULL, ".");
-    char* hash = strtok(NULL, ".");
-
-    printf("Block with index %d recieved\n", atoi(index));
-
-     if(atoi(index) == 0) {
-        foreign_chain = new_chain();
-        printf("Created genesis block for foreign entity.\n");
-        return 0;
+    if( (time(NULL) - temp->last_time) > 60 ) {
+        printf("Pruning chain with ID: '%s'\n", current_node->key);
+        dict_del_elem(foreign_chains,current_node->key,0);
     }
 
-    long the_proof;
-    sscanf(proof,"%020ld",&the_proof);
-
-    if(foreign_chain == NULL) return 0;
-
-    printf("Index Recieved: %d\n",atoi(index));
-    printf("Expected length: %d\n",expected_length);
-    printf("Our length: %d\n",our_chain->length);
-    printf("Last Hash Length: %lu\n", strlen(foreign_chain->last_hash));
-    printf("Last Hash: %s\n",foreign_chain->last_hash);
-
-    if(valid_proof(foreign_chain->last_hash, the_proof)){
-        printf("Valid.\n");
-
-        char posts[] = {};
-        transaction rec_trans[20] = {0};
-        extract_transactions(foreign_chain, rec_trans, transactions);
-        
-        //Add block
-        blink* a_block = append_new_block(foreign_chain, atoi(index), atoi(time),rec_trans, posts, atoi(trans_size), the_proof);
-
-        if((atoi(index)) > our_chain->length && (atoi(index) == expected_length)) {
-
-            printf("\nComplete chain is verified and longer. Make that ours.\n");
-
-            printf(ANSI_COLOR_CYAN);
-            printf("\nABSORBED TOP BLOCK:\n");
-            print_block(a_block,'-');
-            printf(ANSI_COLOR_RESET);
-
-            discard_chain(our_chain);
-            our_chain = foreign_chain;
-            foreign_chain = NULL;
-            
-            *beaten = 1;
-        }
-    }
-    else {
-        printf("Invalid.\n");
-    }
-
-    return 0;
+    return 1;
 }
 
-int verify_foreign_block2(char* input) {
+
+int verify_foreign_block(char* input) {
 
     char f_block[MESSAGE_LENGTH] = {0};
     strcpy(f_block, input);
@@ -430,7 +362,7 @@ int verify_foreign_block2(char* input) {
     char* chain_id = strtok(f_block,".");
     char* exp_length = strtok(NULL, ".");
     char* index = strtok(NULL, ".");
-    char* time = strtok(NULL, ".");
+    char* time_gen = strtok(NULL, ".");
     char* transactions = strtok(NULL, ".");
     char* trans_size = strtok(NULL, ".");
     char* proof = strtok(NULL, ".");
@@ -448,7 +380,9 @@ int verify_foreign_block2(char* input) {
         this_chain->expected_length = atoi(exp_length);
         this_chain->expected_index = 1;
         this_chain->the_chain = malloc(sizeof(blockchain));
+        this_chain->last_time = time(NULL);
         this_chain->the_chain = new_chain();
+        this_chain->the_chain->quickledger->head = NULL;
 
         dict_insert(foreign_chains,chain_id,this_chain,sizeof(alt_chain));
 
@@ -469,6 +403,7 @@ int verify_foreign_block2(char* input) {
         this_chain->expected_index++;
     }
 
+
     long the_proof;
     sscanf(proof,"%020ld",&the_proof);
 
@@ -481,12 +416,15 @@ int verify_foreign_block2(char* input) {
     if(valid_proof(this_chain->the_chain->last_hash, the_proof)){
         printf("Valid.\n");
 
+        this_chain->last_time = time(NULL);
+
+
         char posts[] = {};
         transaction rec_trans[20] = {0};
         extract_transactions(this_chain->the_chain, rec_trans, transactions);
         
         //Add block
-        blink* a_block = append_new_block(this_chain->the_chain, atoi(index), atoi(time),rec_trans, posts, atoi(trans_size), the_proof);
+        blink* a_block = append_new_block(this_chain->the_chain, atoi(index), atoi(time_gen),rec_trans, posts, atoi(trans_size), the_proof);
 
              printf("\nFOREIGN DICT SIZE %d:\n", foreign_chains->size);
             dict_foreach(foreign_chains, print_keys,NULL);
@@ -544,15 +482,15 @@ void process_message(const char* in_msg) {
     if(!strcmp(token, "P"))
         insert_post(to_process + 2);
     if(!strcmp(token, "B>"))
-        /*verify_foreign_block(to_process + 3);*/ verify_foreign_block2(to_process + 3);
+        verify_foreign_block(to_process + 3);
     if(!strcmp(token, "B+"))
-        /*verify_foreign_block(to_process + 3);*/ verify_foreign_block2(to_process + 3);
+        verify_foreign_block(to_process + 3);
     if(!strcmp(token, "N"))
         register_new_node(to_process + 2);
     if(!strcmp(token, "L"))
         compare_length(to_process + 2);
     if(!strcmp(token, "C"))
-        /*send_our_chain(to_process + 2);*/ send_our_chain2(to_process + 2);
+        send_our_chain(to_process + 2);
 
 }
 
@@ -587,12 +525,13 @@ void* in_server() {
     return 0;
 }
 
-//Executes everything in execution queue
+//Executes everything in execution queue + prunes data structures
 void* inbound_executor() {
     while(true) {
         sleep(1);
         pthread_mutex_lock(&our_mutex);
         li_foreach(inbound_msg_queue, process_inbound, NULL);
+        dict_foreach(foreign_chains,prune_chains,NULL);
         pthread_mutex_unlock(&our_mutex);
     }
 }
@@ -602,11 +541,13 @@ void* process_inbound(list* in_list, li_node* input, void* data) {
 
     if(input == NULL) return NULL;
 
-    char* the_message = malloc(input->size + 1);
-    memset(the_message, 0, input->size + 1);
+    //char* the_message = malloc(input->size + 1);
+    //memset(the_message, 0, input->size + 1);
+
+    char the_message[MESSAGE_LENGTH] = {0};
     memcpy(the_message,input->data,input->size);
     process_message(the_message);
-    free(the_message);
+    //free(the_message);
 
     li_delete_node(in_list, input);
 

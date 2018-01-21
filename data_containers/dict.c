@@ -25,7 +25,7 @@ bt_node* bt_node_create(char* in_key, void* in_data, size_t in_size) {
 //Return node with matching key, other wise return node key should go under
 bt_node* bt_node_search(bt_node* head, char* key) {
 
-    if(head == NULL || key == NULL) return NULL;
+    if(head == NULL || head->key == NULL || key == NULL) return NULL;
 
     if(!strcmp(head->key,key)) {
         return head;
