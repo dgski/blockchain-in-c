@@ -18,7 +18,6 @@
 #define ANSI_COLOR_MAGENTA "\x1b[35m"
 
 
-
 //Transaction structure
 typedef struct transaction {
     char sender[PUBLIC_ADDRESS_SIZE];
@@ -60,6 +59,12 @@ typedef struct blockchain {
     dict* quickledger;
 
 } blockchain;
+
+typedef struct alt_chain {
+    blockchain* the_chain;
+    int expected_index;
+    int expected_length;
+} alt_chain;
 
 //Chain functions
 blockchain* new_chain();

@@ -24,6 +24,7 @@
         "utility": "c",
         "__locale": "c",
         "__string": "c",
-        "dict.h": "c"
+        "dict.h": "c",
+        "pem.h": "c"
     }
 }

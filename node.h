@@ -36,6 +36,7 @@ int read_config();
 void graceful_shutdown(int dummy);
 void setup_message(message_item* in_message);
 int print_balance(bt_node* current_node);
+int print_keys(bt_node* current_node);
 
 
 

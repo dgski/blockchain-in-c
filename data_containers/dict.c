@@ -83,16 +83,16 @@ int bt_node_free(bt_node* in_node) {
 }
 
 //Remove node with given key (left: 0, right: 1)
-bt_node* bt_node_remove(bt_node* in_head, char* in_key) {
+bt_node* bt_node_remove(bt_node* in_head, char* in_key, int keep_data) {
 
     if(in_head == NULL) return in_head;
-    else if(strcmp(in_head->key,in_key) < 0) in_head->right = bt_node_remove(in_head->right,in_key);
-    else if(strcmp(in_head->key,in_key) > 0) in_head->left =  bt_node_remove(in_head->left, in_key);
+    else if(strcmp(in_head->key,in_key) < 0) in_head->right = bt_node_remove(in_head->right, in_key, keep_data);
+    else if(strcmp(in_head->key,in_key) > 0) in_head->left =  bt_node_remove(in_head->left, in_key, keep_data);
     else {
 
         //Both Children are NULL
         if(in_head->left == NULL && in_head->right == NULL) {
-            bt_node_free(in_head);
+            if(keep_data == 0) bt_node_free(in_head);
             in_head = NULL;
         }
 
@@ -100,13 +100,13 @@ bt_node* bt_node_remove(bt_node* in_head, char* in_key) {
         else if(in_head->left == NULL) {
             bt_node* temp = in_head;
             in_head = in_head->right;
-            bt_node_free(temp);
+            if(keep_data == 0) bt_node_free(temp);
         }
         //One Child is NULL
         else if(in_head->right == NULL) {
             bt_node* temp = in_head;
             in_head = in_head->left;
-            bt_node_free(temp);
+            if(keep_data == 0) bt_node_free(temp);
         }
         //Both children are real
         else  {
@@ -119,11 +119,11 @@ bt_node* bt_node_remove(bt_node* in_head, char* in_key) {
             bt_node* replacement = bt_node_create(temp->key,temp->data,temp->size);
             replacement->left = in_head->left;
             replacement->right = in_head->right;
-            bt_node_free(in_head);
+            if(keep_data == 0) bt_node_free(in_head);
             in_head = replacement;
 
             //Delete minumum
-            in_head->right = bt_node_remove(in_head->right, in_head->key);
+            in_head->right = bt_node_remove(in_head->right, in_head->key, keep_data);
         }
     }
     return in_head;
@@ -186,11 +186,11 @@ void* dict_access(dict* in_dict, char* in_key) {
 }
 
 //Delete element in dictionary
-int dict_del_elem(dict* in_dict, char* in_key) {
+int dict_del_elem(dict* in_dict, char* in_key, int keep_data) {
 
     if(in_dict == NULL || in_key == NULL || dict_access(in_dict, in_key) == NULL) return 0;
 
-    bt_node_remove(in_dict->head,in_key);
+    in_dict->head = bt_node_remove(in_dict->head,in_key, keep_data);
     in_dict->size--;
 
     return 1;
@@ -233,7 +233,7 @@ int bt_foreach(bt_node* in_node, int (*func)(bt_node* current_node),void* data) 
     bt_node* temp_right = in_node->right;
     
     //Run function on your self
-    func(in_node);
+    if(in_node != NULL) func(in_node);
 
     //Run function on right side
     if(temp_right != NULL)
