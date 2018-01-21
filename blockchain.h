@@ -64,6 +64,7 @@ typedef struct alt_chain {
     blockchain* the_chain;
     int expected_index;
     int expected_length;
+    unsigned int last_time;
 } alt_chain;
 
 //Chain functions
@@ -72,7 +73,7 @@ int discard_chain(blockchain* in_chain);
 void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, int in_amount,char* in_signature);
 blink* append_current_block(blockchain* in_chain, long in_proof);
 blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int in_time, transaction* trans_list,
- char* posts, unsigned int trans_list_length, long proof);
+char* posts, unsigned int trans_list_length, long proof);
 
 //Block functions
 void print_block(blink* in_block, char separator);
