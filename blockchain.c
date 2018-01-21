@@ -2,9 +2,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <time.h>
-#include <openssl/rsa.h>
-#include <openssl/pem.h>
-#include <openssl/err.h>
+
 #include <signal.h>
 
 #include "blockchain.h"
@@ -368,6 +366,113 @@ long proof_of_work(int* beaten, char* last_hash) {
     sprintf(guess, "%s%020ld",last_hash, proof);*/
 
     return proof;
+}
+
+//Create keys for private_public pair
+int create_keys(RSA** your_keys, char** pri_key, char** pub_key) {
+
+    printf("PRI_KEY: %s\n", *pri_key);
+
+//Create keypair
+    *your_keys = RSA_generate_key(2048,3,NULL,NULL);
+
+    //Create structures to seperate keys
+    BIO *pri = BIO_new(BIO_s_mem());
+    BIO *pub = BIO_new(BIO_s_mem());
+
+    //Extract data out of RSA structure 
+    PEM_write_bio_RSAPrivateKey(pri, *your_keys, NULL, NULL, 0, NULL, NULL);
+    PEM_write_bio_RSAPublicKey(pub, *your_keys);
+
+    //Get length of data
+    size_t pri_len = BIO_pending(pri);
+    size_t pub_len = BIO_pending(pub);
+
+    //Prepare char buffers for keys
+    *pri_key = malloc(pri_len + 1);
+    *pub_key = malloc(pub_len + 1);
+
+    //Read into buffers
+    BIO_read(pri,*pri_key,pri_len);
+    BIO_read(pub, *pub_key,pub_len);
+
+    //Terminate strings
+    (*pri_key)[pri_len] = '\0';
+    (*pub_key)[pub_len] = '\0';
+
+
+    return 1;
+
+}
+
+int destroy_keys(RSA** your_keys, char** pri_key, char** pub_key) {
+
+    free(*pri_key);
+    free(*pub_key);
+    RSA_free(*your_keys);
+
+    return 1;
+
+}
+
+
+int message_signature(char* output, char* message, RSA* keypair, char* pub_key) {
+
+
+    //Hash the message
+    unsigned char data[32];
+    hash256(data,message + 2);
+
+    //Print the hash
+    printf("HASHVALUE:\n");
+    for(int i= 0; i < 32; i++)
+        printf("%02x", data[i]);
+    printf("\n");
+
+    //Prepare signature buffer
+    unsigned char* sig = malloc(RSA_size(keypair));
+    unsigned int sig_len = 0;
+    if(sig == NULL) return 0;
+
+    //Create signature
+    int rc = RSA_sign(NID_sha256,data,32,sig, &sig_len,keypair);
+    if(rc != 1) return 0;
+
+    //convert to asci
+    for(int i = 0; i < 256; i++) {
+        char buf[3] = {0};
+        sprintf(buf,"%02x", sig[i]);
+        strcat(output,buf);
+    }
+
+    free(sig);
+    printf("ASCI SIG:\n%s\n", output);
+
+    //Verify
+    unsigned char signature[256];
+    char* pointer = output;
+    //extract sig from hex asci
+    for(int i = 0; i < 256; i++) {
+        unsigned int value;
+        sscanf(pointer, "%02x", &value);
+        //printf("%02x", value);
+        pointer = pointer + 2;
+        signature[i] = value;
+    }
+    printf("\n");
+
+    printf("size of key: %lu\n", strlen(pub_key) + 1);
+    printf("%s\n", pub_key);
+
+    BIO *bio = BIO_new_mem_buf((void*)pub_key, strlen(pub_key));
+    RSA *rsa_pub = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
+
+    rc = RSA_verify(NID_sha256, data,32,signature,256,rsa_pub);
+    if(rc != 1) printf("ERROR VERIFYING!\n"); else printf("VERIFIED!\n");
+
+
+
+    return 1;
 }
 
 bool verify_signiture(const char* input, char* sender, char* recipient, char* amount, char* signature) {

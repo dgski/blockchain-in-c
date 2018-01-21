@@ -25,6 +25,7 @@
         "__locale": "c",
         "__string": "c",
         "dict.h": "c",
-        "pem.h": "c"
+        "pem.h": "c",
+        "rsa.h": "c"
     }
 }

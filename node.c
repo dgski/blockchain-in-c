@@ -23,6 +23,9 @@
 //Identification
 char node_name[60];
 char our_ip[120] = {0};
+RSA* our_keys;
+char* pub_key;
+char* pri_key;
 
 //Blockchains
 blockchain* our_chain;
@@ -82,10 +85,12 @@ int mine() {
             fgets(buffer, sizeof(buffer), stdin);
         }
 
-        if(our_chain->total_currency < CURRENCY_CAP)
+        if(our_chain->total_currency < CURRENCY_CAP) {
             new_transaction(our_chain,node_name,node_name, CURRENCY_SPEED, "hello");
-        else
+        }
+        else {
             new_transaction(our_chain,node_name,node_name, 0, "hello");
+        }
 
         
         unsigned int time_1 = time(NULL);
@@ -634,6 +639,9 @@ void graceful_shutdown(int dummy) {
     
     pthread_mutex_destroy(&our_mutex);
 
+    //Discard keys
+    destroy_keys(&our_keys, &pri_key, &pub_key);
+
     nn_close(sock_in);
     nn_close(sock_out);
     free(beaten);
@@ -658,6 +666,16 @@ int main(int argc, char* argv[]) {
     our_chain = new_chain();
     beaten = malloc(sizeof(int));
     *beaten = 0;
+
+    //Generate our pri/pub address keys
+    char hello[] = "hello";
+    pri_key = hello;
+    create_keys(&our_keys,&pri_key,&pub_key);
+
+
+    printf("Created Keypair:\n\n");
+    printf("%s%s\n\n", pri_key, pub_key);
+
 
     //Create foreign chain dict
     foreign_chains = dict_create();

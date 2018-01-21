@@ -1,5 +1,8 @@
 #include <stdbool.h>
 #include "data_containers/dict.h"
+#include <openssl/rsa.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
 
 #define BLOCK_STR_SIZE 1572
 #define BLOCK_DATA_SIZE 8
@@ -97,6 +100,11 @@ void blink_discard_list(blink* head);
 //Work functions
 bool valid_proof( char* last_hash, long proof);
 long proof_of_work(int* beaten, char* last_hash);
+
+//Crypto functions
+int create_keys(RSA** your_keys, char** pri_key, char** pub_key);
+int destroy_keys(RSA** your_keys, char** pri_key, char** pub_key);
+int message_signature(char* output, char* message, RSA* keypair, char* pub_key);
 bool verify_signiture(const char* input, char* sender, char* recipient, char* amount, char* signature);
 
 
