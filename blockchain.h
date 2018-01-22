@@ -59,6 +59,9 @@ typedef struct blockchain {
     transaction trans_list[TRANS_LIST_SIZE];
 
     char new_posts[BLOCK_DATA_SIZE];
+    
+    char trans_hash[HASH_HEX_SIZE];
+
     long last_proof_of_work;
     int trans_index;
     unsigned int length;
@@ -88,6 +91,7 @@ void print_block(blink* in_block, char separator);
 char* string_block(char* output, block* in_block);
 char* hash_block(block* in_block);
 int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in_trans);
+int extract_transactions_raw(transaction* trans_array, char* in_trans);
 
 //Transaction functions
 char* string_trans_nosig(char* output, char* sender, char* receiver, int amount);
@@ -105,14 +109,16 @@ void blink_print_list(blink* head);
 void blink_discard_list(blink* head);
 
 //Work functions
-bool valid_proof( char* last_hash, long proof);
-long proof_of_work(int* beaten, char* last_hash);
+bool valid_proof(char* last_hash, char* trans_hash,  long proof);
+long proof_of_work(int* beaten, char* last_hash, char* trans_hash);
 
 //Crypto functions
 int create_keys(RSA** your_keys, char** pri_key, char** pub_key);
 int destroy_keys(RSA** your_keys, char** pri_key, char** pub_key);
 int message_signature(char* output, char* message, RSA* keypair, char* pub_key);
 bool verify_signiture(const char* input, char* sender, char* recipient, char* amount, char* signature);
+int hash_transactions(char* output, transaction* trans_array, unsigned int trans_array_length);
+
 
 
 

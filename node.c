@@ -14,7 +14,7 @@
 #include "node.h"
 
 #define DEBUG 1
-#define MESSAGE_LENGTH 2000
+#define MESSAGE_LENGTH 5000
 
 /////////////////////////////////////////////////////
 //GLOBAL VARIABLES
@@ -110,7 +110,7 @@ int mine() {
 
         
         unsigned int time_1 = time(NULL);
-        result = proof_of_work(beaten, our_chain->last_hash);
+        result = proof_of_work(beaten,our_chain->last_hash, our_chain->trans_hash);
         unsigned int time_2 = time(NULL);
 
         if(result > 0) {
@@ -327,7 +327,7 @@ int send_our_chain(char* address) {
 
     if(strlen(address) > 120) return 0;
     printf("Sending blockchain to: %s, ", address);
-    char message[MESSAGE_LENGTH];
+    char message[MESSAGE_LENGTH] = {0};
 
     if(our_chain->head == NULL) return 0;
     blink* temp = our_chain->head;
@@ -338,13 +338,22 @@ int send_our_chain(char* address) {
 
     for(int i = 0; i < our_chain->length + 1; i++) {
 
+        memset(message,0,MESSAGE_LENGTH);
         strcpy(message, "B+ ");
-        char block[2000] = {0};
+
+        char block[5000] = {0};
         strcat(message, rand_chain_id);
+
         char the_length[12];
         sprintf(the_length,"%010d.", our_chain->length);
         strcat(message, the_length);
+
+        printf("XXXXXX new message sig: %s\n",temp->data.trans_list[0].signature);
+
         string_block(block,&temp->data);
+
+
+
         strcat(message, block);
 
         message_item the_chain;
@@ -435,7 +444,12 @@ int verify_foreign_block(char* input) {
     printf("Last Hash Length: %lu\n", strlen(this_chain->the_chain->last_hash));
     printf("Last Hash: %s\n",this_chain->the_chain->last_hash);
 
-    if(valid_proof(this_chain->the_chain->last_hash, the_proof)){
+    char trans_hash[HASH_HEX_SIZE];
+    transaction new_trans_array[20] = {0};
+    extract_transactions_raw(new_trans_array,transactions);
+    hash_transactions(trans_hash,new_trans_array, atoi(trans_size));
+
+    if(valid_proof(this_chain->the_chain->last_hash,trans_hash, the_proof)){
 
         this_chain->last_time = time(NULL);
 

@@ -59,6 +59,45 @@ int discard_chain(blockchain* in_chain) {
     return 1;
 }
 
+int hash_transactions(char* output, transaction* trans_array, unsigned int trans_array_length) {
+
+    if(output == NULL || trans_array == NULL) return 0;
+
+    char all_transactions[BLOCK_STR_SIZE] ={0};
+
+    for(int i = 0; i < trans_array_length; i++) {
+
+        char this_transaction[BLOCK_BUFFER_SIZE];
+        sprintf(this_transaction,"%s %s %d %s ", 
+        trans_array[i].sender, trans_array[i].recipient, trans_array[i].amount, trans_array[i].signature
+        );
+        strcat(all_transactions,this_transaction);
+        if(i + 1 != trans_array_length)
+            strcat(all_transactions, ".");
+    }
+
+    unsigned char hashvalue[HASH_SIZE];
+    hash256(hashvalue,all_transactions);
+
+    char hex_hash[HASH_HEX_SIZE] = {0};
+    char buffer[3];
+    
+    for(int i = 0; i < HASH_SIZE; i++) {
+        memset(buffer, 0, sizeof(buffer));
+        sprintf(buffer,"%02x", hashvalue[i]);
+        strcat(hex_hash, buffer);
+    }
+
+    printf("HEXHASH OF TRANSACTIONS: '%s'\n", hex_hash);
+
+    strcpy(output, hex_hash);
+
+
+    return 1;
+
+}
+
+
 //Add transaction to transaction_list
 void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, int in_amount, char* in_signature) {
 
@@ -69,7 +108,13 @@ void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, 
     int index = in_chain->trans_index++;
     strcpy(in_chain->trans_list[index].sender, in_sender);
     strcpy(in_chain->trans_list[index].recipient, in_recipient);
+
+    printf("NEW TRANSACTION FUNCTION:::::::::");
+    printf("in_sig: %s\n", in_signature);
+
     strcpy(in_chain->trans_list[index].signature, in_signature);
+    printf("translist sig: %s\n", in_chain->trans_list[index].signature);
+
     in_chain->trans_list[index].amount = in_amount;
 
     //Update quick ledger
@@ -94,8 +139,7 @@ void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, 
     recipient_future_balance += in_amount;
     dict_insert(in_chain->quickledger, in_recipient, &recipient_future_balance, sizeof(recipient_future_balance));
     
-     
-
+    hash_transactions(in_chain->trans_hash, in_chain->trans_list,in_chain->trans_index);
 
 
 
@@ -213,7 +257,14 @@ char* string_block(char* output, block* in_block) {
     //Add transactions
     for(int i = 0; i < in_block->trans_list_length; i++) {
 
+        memset(buffer, 0, BLOCK_BUFFER_SIZE);
+
+
+        printf("IN TRANSACTION BUFFER: %s\n", in_block->trans_list[i].signature);
         sprintf(buffer,"%s:%s:%010d:%s", in_block->trans_list[i].sender,in_block->trans_list[i].recipient,in_block->trans_list[i].amount, in_block->trans_list[i].signature);
+        
+        printf("TRANSACTION BUFFER:::::::::::: %s\n", buffer);
+        
         if(i + 1 != in_block->trans_list_length) strcat(buffer,"-");
         strcat(block_string,buffer);
     }
@@ -254,10 +305,68 @@ char* string_trans_nosig(char* output, char* sender, char* receiver, int amount)
     return output;
 }
 
+int extract_transactions_raw(transaction* trans_array, char* input_trans_string) {
+
+
+    char* trans_strings[20] = {0};
+
+    char in_trans[5000] = {0};
+    strcpy(in_trans, input_trans_string);
+
+    char* pointer = strtok(in_trans,"-");
+    trans_strings[0] = pointer;
+    int i = 1;
+    while(pointer != NULL) {
+        pointer = strtok(NULL,"-");
+        trans_strings[i++] = pointer;
+    }
+    
+    for(int i = 0; trans_strings[i] != 0; i++) {
+        printf("TRANSACTION: %s\n", trans_strings[i]);
+    }
+
+    char* sender;
+    char* reciever;
+    char* amount;
+    char* signature;
+
+    for(int i = 0; trans_strings[i] != 0; i++) {
+
+        sender = strtok(trans_strings[i],":");
+        printf("sender: %s\n", sender);
+        reciever = strtok(NULL, ":");
+        printf("reciever: %s\n", reciever);
+        amount = strtok(NULL, ":");
+        printf("amount: %s\n", amount);
+        signature = strtok(NULL, ":");
+        printf("signature: %s\n", signature);
+
+        char output[2500] = {0};
+        string_trans_nosig(output,sender,reciever,atoi(amount));
+        printf("\n\n\n\n");
+        printf("OUT: '%s'\n", output);
+        printf("\n\n\n\n");
+        printf("\n\nSIG: '%s'\n", signature);
+        printf("\n\n\n\n");
+
+        strcpy(trans_array[i].sender, sender);
+        strcpy(trans_array[i].recipient, reciever);
+        trans_array[i].amount = atoi(amount);
+        strcpy(trans_array[i].signature, signature);
+
+    }
+
+    return 1;
+}
 
 
 int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in_trans) {
  
+    printf("\n\n\n\n\n\n");
+    printf("%s\n", in_trans);
+    printf("\n\n\n\n\n\n");
+
+
     char* trans_strings[20] = {0};
 
     char* pointer = strtok(in_trans,"-");
@@ -267,10 +376,13 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in
         pointer = strtok(NULL,"-");
         trans_strings[i++] = pointer;
     }
-    /*
+    
     for(int i = 0; trans_strings[i] != 0; i++) {
+            printf("\n\n\n\n\n\n");
         printf("TRANSACTION: %s\n", trans_strings[i]);
-    }*/
+            printf("\n\n\n\n\n\n");
+
+    }
 
     char* sender;
     char* reciever;
@@ -375,10 +487,11 @@ char* hash_block(block* in_block) {
     return hash_hex;
 }
 
-bool valid_proof(char* last_hash, long proof) {
+bool valid_proof(char* last_hash, char* trans_hash,  long proof) {
 
     char guess[GUESS_SIZE] = {0};
-    sprintf(guess, "%s%020ld",last_hash, proof);
+    sprintf(guess, "%s%s%020ld",last_hash, trans_hash, proof);
+    //printf("%s\n", guess);
 
     unsigned char hash_value[HASH_SIZE];
     hash256(hash_value,guess);
@@ -390,16 +503,23 @@ bool valid_proof(char* last_hash, long proof) {
 
 }
 
-long proof_of_work(int* beaten, char* last_hash) {
+long proof_of_work(int* beaten, char* last_hash, char* trans_hash) {
 
     long proof = 0;
+    char old_trans_hash[HASH_HEX_SIZE];
+    strcpy(old_trans_hash, trans_hash);
 
-    while(valid_proof(last_hash, proof) == false){
+    while(valid_proof(last_hash, old_trans_hash, proof) == false){
         //printf("%d\n", proof);
         proof += 1;
         
         if(*beaten) {
             return -1;
+        }
+        if(strcmp(old_trans_hash, trans_hash)) {
+            printf("Hash Changed. Resetting Nonce.\n");
+            proof = 0;
+            strcpy(old_trans_hash, trans_hash);
         }
     }
     /*
@@ -524,6 +644,23 @@ int message_signature(char* output, char* message, RSA* keypair, char* pub_key) 
 
 bool verify_signiture(const char* input, char* sender, char* recipient, char* amount, char* signature) {
     
+    printf(ANSI_COLOR_RED);
+    printf("\n\n\n\n\n\n\n");
+    printf("SENDER: '%s'\n", sender);
+    printf("RECEIVER: '%s'\n", recipient);
+    printf("AMOUNT: '%s'\n", amount);
+    printf("SIGNATURE: '%s'\n", signature);
+    printf("\n\n\n\n\n\n\n");
+    printf(ANSI_COLOR_RESET);
+
+
+
+
+
+
+
+
+
     char data[2000] = {0};
 
     strcat(data, sender);
@@ -586,7 +723,7 @@ bool verify_signiture(const char* input, char* sender, char* recipient, char* am
 
     int rc = RSA_verify(NID_sha256, hash_value,32,sig,256,rsa_pub);
     //printf("VERIFY RETURN: %d\n", rc);
-    if(rc != 1) printf("Invalid."); else printf("Valid.");
+    if(rc != 1) printf("Invalid.\n"); else printf("Valid.\n");
 
     if(rc) return true; else return false;
 }

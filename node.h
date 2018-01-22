@@ -1,6 +1,6 @@
 typedef struct message_item {
     char toWhom[120];
-    char message[2400];
+    char message[5000];
     unsigned int tries;
 } message_item;
 

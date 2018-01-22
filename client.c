@@ -131,11 +131,12 @@ bool val_trans_format(char* recipient, char* amount) {
 int message_signature(char* output, char* message, RSA* keypair) {
 
 
+    printf("MESSAGE: '%s'\n", message);
 
 
     //Hash the message
     unsigned char data[32];
-    hash256(data,message + 2);
+    hash256(data,message);
 
     //Print the hash
     printf("HASHVALUE:\n");
@@ -259,6 +260,9 @@ void post_transaction(char* input) {
 
     //sscanf(input, "%*s %s %s %s", sender, recipient, amount);
     sscanf(input, "%*s %s %s", recipient, amount);
+
+    int the_amount = atoi(amount);
+    sprintf(amount,"%010d", the_amount);
 
 
     //if(!val_trans_format(sender, recipient, amount))
