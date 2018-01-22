@@ -30,7 +30,7 @@ typedef struct transaction {
     char sender[PUBLIC_ADDRESS_SIZE];
     char recipient[PUBLIC_ADDRESS_SIZE];
     int amount;
-    char signature[PUBLIC_ADDRESS_SIZE];
+    char signature[550];
 } transaction;
 
 //Block Structure

@@ -109,11 +109,11 @@ void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, 
     strcpy(in_chain->trans_list[index].sender, in_sender);
     strcpy(in_chain->trans_list[index].recipient, in_recipient);
 
-    printf("NEW TRANSACTION FUNCTION:::::::::");
-    printf("in_sig: %s\n", in_signature);
+    //printf("NEW TRANSACTION FUNCTION:::::::::");
+    //printf("in_sig: %s\n", in_signature);
 
     strcpy(in_chain->trans_list[index].signature, in_signature);
-    printf("translist sig: %s\n", in_chain->trans_list[index].signature);
+    //printf("translist sig: %s\n", in_chain->trans_list[index].signature);
 
     in_chain->trans_list[index].amount = in_amount;
 
@@ -260,10 +260,10 @@ char* string_block(char* output, block* in_block) {
         memset(buffer, 0, BLOCK_BUFFER_SIZE);
 
 
-        printf("IN TRANSACTION BUFFER: %s\n", in_block->trans_list[i].signature);
+        //printf("IN TRANSACTION BUFFER: %s\n", in_block->trans_list[i].signature);
         sprintf(buffer,"%s:%s:%010d:%s", in_block->trans_list[i].sender,in_block->trans_list[i].recipient,in_block->trans_list[i].amount, in_block->trans_list[i].signature);
         
-        printf("TRANSACTION BUFFER:::::::::::: %s\n", buffer);
+        //printf("TRANSACTION BUFFER:::::::::::: %s\n", buffer);
         
         if(i + 1 != in_block->trans_list_length) strcat(buffer,"-");
         strcat(block_string,buffer);
@@ -341,13 +341,15 @@ int extract_transactions_raw(transaction* trans_array, char* input_trans_string)
         signature = strtok(NULL, ":");
         printf("signature: %s\n", signature);
 
-        char output[2500] = {0};
+        char output[5000] = {0};
         string_trans_nosig(output,sender,reciever,atoi(amount));
+        /*
         printf("\n\n\n\n");
         printf("OUT: '%s'\n", output);
         printf("\n\n\n\n");
         printf("\n\nSIG: '%s'\n", signature);
         printf("\n\n\n\n");
+        */
 
         strcpy(trans_array[i].sender, sender);
         strcpy(trans_array[i].recipient, reciever);
@@ -361,10 +363,11 @@ int extract_transactions_raw(transaction* trans_array, char* input_trans_string)
 
 
 int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in_trans) {
- 
+    /*
     printf("\n\n\n\n\n\n");
     printf("%s\n", in_trans);
     printf("\n\n\n\n\n\n");
+    */
 
 
     char* trans_strings[20] = {0};
@@ -376,13 +379,13 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in
         pointer = strtok(NULL,"-");
         trans_strings[i++] = pointer;
     }
-    
+    /*
     for(int i = 0; trans_strings[i] != 0; i++) {
             printf("\n\n\n\n\n\n");
         printf("TRANSACTION: %s\n", trans_strings[i]);
             printf("\n\n\n\n\n\n");
 
-    }
+    }*/
 
     char* sender;
     char* reciever;
@@ -402,11 +405,13 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in
 
         char output[2500] = {0};
         string_trans_nosig(output,sender,reciever,atoi(amount));
+        /*
         printf("\n\n\n\n");
         printf("OUT: '%s'\n", output);
         printf("\n\n\n\n");
         printf("\n\nSIG: '%s'\n", signature);
         printf("\n\n\n\n");
+        */
 
 
 
@@ -426,19 +431,24 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in
         //Update quick ledger
         //temp fix for creation transactions
         if(strcmp(sender, reciever)) {
-            int* sender_funds = (int*)dict_access(in_chain->quickledger, sender);
-            int sender_future_balance = *sender_funds - atoi(amount);
+            void* sender_funds = dict_access(in_chain->quickledger, sender);
+            int sender_future_balance = 0;
+            if(sender_funds != NULL)
+                sender_future_balance = *((int*)sender_funds) - atoi(amount);
+
             dict_insert(in_chain->quickledger, sender, &sender_future_balance, sizeof(sender_funds));
         }
 
         //Addresses are the same, Currency cap already met, and they are trying to give themselves more
         if(!strcmp(sender, reciever) && in_chain->total_currency >= CURRENCY_CAP && atoi(amount) != 0) {
-            return 0;
+            //return 0;
+            return 1; //temp
         }
 
         //Addresses are the same, Trying to givethemselves more than 2
         if(!strcmp(sender, reciever) && (in_chain->total_currency < CURRENCY_CAP) && (atoi(amount) != CURRENCY_SPEED) ) {
-            return 0;
+            //return 0;
+            return 1; //temp
         }
 
 

@@ -213,7 +213,11 @@ int insert_trans(char* input) {
 
     printf("\nVerifying Transaction...");
 
-    char* sender = strtok(input," ");
+    char buffer[5000] = {0};
+    strcpy(buffer, input);
+
+
+    char* sender = strtok(buffer," ");
     char* recipient = strtok(NULL, " ");
     char* amount = strtok(NULL, " ");
     char* signature = strtok(NULL, " ");
@@ -231,7 +235,7 @@ int insert_trans(char* input) {
 
 
     //Check if transaction is signed
-    if(!verify_signiture(input,sender, recipient, amount, signature))
+    if(!verify_signiture(buffer,sender, recipient, amount, signature))
         return 0;
 
     printf("\nInserting.\n");
@@ -240,6 +244,8 @@ int insert_trans(char* input) {
     sscanf(amount,"%d",&amount2);
 
     new_transaction(our_chain,sender,recipient,amount2,signature);
+
+    printf("AFTER ADDING: %s\n", our_chain->trans_list[0].signature);
 
     return 1;
 }
@@ -335,7 +341,7 @@ int send_our_chain(char* address) {
     char rand_chain_id[60];
     int r = rand();   
     sprintf(rand_chain_id, "CHIN%010d.", r);
-
+    printf("AAAAA new message sig: %s\n",temp->data.trans_list[0].signature);
     for(int i = 0; i < our_chain->length + 1; i++) {
 
         memset(message,0,MESSAGE_LENGTH);
@@ -458,6 +464,7 @@ int verify_foreign_block(char* input) {
         transaction rec_trans[20] = {0};
         int all_valid_trans = extract_transactions(this_chain->the_chain, rec_trans, transactions);
 
+
         if(!all_valid_trans) {
             printf("Invalid.\n");
             return 0;
@@ -553,7 +560,7 @@ void* in_server() {
     char buf[MESSAGE_LENGTH];
 
     while(true) {
-        usleep(10000);
+        usleep(100000);
         int bytes = nn_recv(sock_in, buf, sizeof(buf), 0);
         if(bytes > 0) {
             buf[bytes] = 0;
