@@ -4,12 +4,14 @@
 #include <openssl/pem.h>
 #include <openssl/err.h>
 
-#define BLOCK_STR_SIZE 1572
+#define BLOCK_STR_SIZE 10000
 #define BLOCK_DATA_SIZE 8
+#define BLOCK_BUFFER_SIZE 5000
 #define TRANS_LIST_SIZE 20
 #define HASH_SIZE 32
 #define HASH_HEX_SIZE 65
 #define PUBLIC_ADDRESS_SIZE 500
+#define SIG_SIZE 513
 #define GUESS_SIZE 200
 #define CURRENCY_CAP 10
 #define CURRENCY_SPEED 2
@@ -86,6 +88,11 @@ void print_block(blink* in_block, char separator);
 char* string_block(char* output, block* in_block);
 char* hash_block(block* in_block);
 int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in_trans);
+
+//Transaction functions
+char* string_trans_nosig(char* output, char* sender, char* receiver, int amount);
+int strip_pub_key(char* output, char* input);
+
 
 
 //Link functions

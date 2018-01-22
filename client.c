@@ -295,7 +295,7 @@ void post_transaction(char* input) {
     strcat(out_msg, seperator);
     strcat(out_msg, amount);
     char sig[513] = {0};
-    message_signature(sig,out_msg,your_keys);
+    message_signature(sig,out_msg + 2,your_keys);
     strcat(out_msg, seperator);
     strcat(out_msg,sig);
 

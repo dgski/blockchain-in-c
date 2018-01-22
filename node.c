@@ -25,6 +25,7 @@ char node_name[60];
 char our_ip[120] = {0};
 RSA* our_keys;
 char* pub_key;
+char stripped_pub_key[500];
 char* pri_key;
 
 //Blockchains
@@ -60,7 +61,7 @@ int sock_out;
 int print_balance(bt_node* current_node) {
     
     int* balance = current_node->data;
-    printf("%s : %d\n", current_node->key, *balance);
+    printf("%.10s... : %d\n", current_node->key, *balance);
     return 1;
 }
 
@@ -85,11 +86,26 @@ int mine() {
             fgets(buffer, sizeof(buffer), stdin);
         }
 
+        char sig[513] = {0};
+        char output[2500] = {0};
+
+
         if(our_chain->total_currency < CURRENCY_CAP) {
-            new_transaction(our_chain,node_name,node_name, CURRENCY_SPEED, "hello");
+
+            string_trans_nosig(output, stripped_pub_key, stripped_pub_key, CURRENCY_SPEED);
+            printf("\n\n\n\n");
+            printf("OUT: '%s'\n", output);
+            printf("\n\n\n\n");
+            message_signature(sig,output, our_keys,pub_key);
+            printf("\n\nSIG: '%s'\n", sig);
+            printf("\n\n\n\n");
+
+            new_transaction(our_chain,stripped_pub_key,stripped_pub_key, CURRENCY_SPEED, sig);
         }
         else {
-            new_transaction(our_chain,node_name,node_name, 0, "hello");
+            string_trans_nosig(output, stripped_pub_key, stripped_pub_key, 0);
+            message_signature(sig,output, our_keys,pub_key);
+            new_transaction(our_chain,stripped_pub_key,stripped_pub_key, 0, sig);
         }
 
         
@@ -118,7 +134,7 @@ int mine() {
             *beaten = 0;
         }
         int our_earnings = 0;
-        void* our_ledger_earnings = dict_access(our_chain->quickledger,node_name);
+        void* our_ledger_earnings = dict_access(our_chain->quickledger,stripped_pub_key);
         if(our_ledger_earnings != NULL)
             our_earnings += *((int*)our_ledger_earnings);
 
@@ -201,7 +217,7 @@ int insert_trans(char* input) {
     char* recipient = strtok(NULL, " ");
     char* amount = strtok(NULL, " ");
     char* signature = strtok(NULL, " ");
-
+    /*
     //Check if user has enough in quick ledger
     void* sender_balance = dict_access(our_chain->quickledger, sender);
 
@@ -209,6 +225,7 @@ int insert_trans(char* input) {
         printf("Insufficient Funds.\n");
         return 0;
     }
+    */
 
 
 
@@ -411,7 +428,7 @@ int verify_foreign_block(char* input) {
 
     long the_proof;
     sscanf(proof,"%020ld",&the_proof);
-
+    printf("Recieved Proof: %ld\n", the_proof);
     printf("Index Recieved: %d\n",atoi(index));
     printf("Expected length: %d\n",this_chain->expected_length);
     printf("Our length: %d\n",our_chain->length);
@@ -419,14 +436,20 @@ int verify_foreign_block(char* input) {
     printf("Last Hash: %s\n",this_chain->the_chain->last_hash);
 
     if(valid_proof(this_chain->the_chain->last_hash, the_proof)){
-        printf("Valid.\n");
 
         this_chain->last_time = time(NULL);
 
 
         char posts[] = {};
         transaction rec_trans[20] = {0};
-        extract_transactions(this_chain->the_chain, rec_trans, transactions);
+        int all_valid_trans = extract_transactions(this_chain->the_chain, rec_trans, transactions);
+
+        if(!all_valid_trans) {
+            printf("Invalid.\n");
+            return 0;
+        }
+        printf("Valid.\n");
+
         
         //Add block
         blink* a_block = append_new_block(this_chain->the_chain, atoi(index), atoi(time_gen),rec_trans, posts, atoi(trans_size), the_proof);
@@ -671,6 +694,8 @@ int main(int argc, char* argv[]) {
     char hello[] = "hello";
     pri_key = hello;
     create_keys(&our_keys,&pri_key,&pub_key);
+    strip_pub_key(stripped_pub_key, pub_key);
+
 
 
     printf("Created Keypair:\n\n");

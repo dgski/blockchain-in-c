@@ -75,8 +75,14 @@ void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, 
     //Update quick ledger
     //temp fix for creation transactions
     if(strcmp(in_sender, in_recipient)) {
-        int* sender_funds = (int*)dict_access(in_chain->quickledger, in_sender);
-        int sender_future_balance = *sender_funds - in_amount;
+        void* sender_funds = dict_access(in_chain->quickledger, in_sender);
+        int sender_future_balance = 0;
+
+        if(sender_funds != NULL) {
+            sender_future_balance = *((int*)sender_funds) - in_amount; //CHANGE AF
+            sender_future_balance += 200; //CHANGE AF
+
+        }
         dict_insert(in_chain->quickledger, in_sender, &sender_future_balance, sizeof(sender_funds));
     }
 
@@ -176,7 +182,8 @@ void print_block(blink* in_block, char separator)
     printf("TRANSACTIONS:\n");
 
     for(int i = 0; i < in_block->data.trans_list_length; i++)
-        printf("%.10s : %.10s - %d\n", in_block->data.trans_list[i].sender, in_block->data.trans_list[i].recipient, in_block->data.trans_list[i].amount);
+        printf("%.10s... : %.10s... - %d , %.10s...\n", in_block->data.trans_list[i].sender + 12, in_block->data.trans_list[i].recipient + 12, 
+        in_block->data.trans_list[i].amount, in_block->data.trans_list[i].signature);
     
     printf("PROOF: %ld\n",in_block->data.proof);
     printf("PREV HASH: ");
@@ -195,7 +202,7 @@ void print_block(blink* in_block, char separator)
 char* string_block(char* output, block* in_block) {
 
     char block_string[BLOCK_STR_SIZE] = {0};
-    char buffer[1100] = {0};
+    char buffer[BLOCK_BUFFER_SIZE] = {0};
 
     //Add index and time
     sprintf(block_string,"%010i.%010i.", in_block->index, in_block->time);
@@ -206,7 +213,7 @@ char* string_block(char* output, block* in_block) {
     //Add transactions
     for(int i = 0; i < in_block->trans_list_length; i++) {
 
-        sprintf(buffer,"%s:%s:%010d", in_block->trans_list[i].sender,in_block->trans_list[i].recipient,in_block->trans_list[i].amount);
+        sprintf(buffer,"%s:%s:%010d:%s", in_block->trans_list[i].sender,in_block->trans_list[i].recipient,in_block->trans_list[i].amount, in_block->trans_list[i].signature);
         if(i + 1 != in_block->trans_list_length) strcat(buffer,"-");
         strcat(block_string,buffer);
     }
@@ -234,6 +241,19 @@ char* string_block(char* output, block* in_block) {
     return output;
 }
 
+char* string_trans_nosig(char* output, char* sender, char* receiver, int amount) {
+
+    strcpy(output, sender);
+    strcat(output, " ");
+    strcat(output, receiver);
+    strcat(output, " ");
+    char the_amount[20];
+    sprintf(the_amount, "%010d", amount);
+    strcat(output, the_amount);
+
+    return output;
+}
+
 
 
 int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in_trans) {
@@ -255,18 +275,40 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in
     char* sender;
     char* reciever;
     char* amount;
+    char* signature;
 
     for(int i = 0; trans_strings[i] != 0; i++) {
 
         sender = strtok(trans_strings[i],":");
-        //printf("sender: %s\n", sender);
+        printf("sender: %s\n", sender);
         reciever = strtok(NULL, ":");
-        //printf("reciever: %s\n", reciever);
+        printf("reciever: %s\n", reciever);
         amount = strtok(NULL, ":");
-        //printf("amount: %s\n", amount);
+        printf("amount: %s\n", amount);
+        signature = strtok(NULL, ":");
+        printf("signature: %s\n", signature);
+
+        char output[2500] = {0};
+        string_trans_nosig(output,sender,reciever,atoi(amount));
+        printf("\n\n\n\n");
+        printf("OUT: '%s'\n", output);
+        printf("\n\n\n\n");
+        printf("\n\nSIG: '%s'\n", signature);
+        printf("\n\n\n\n");
+
+
+
+
+        printf("VERIFYING TRANSACTION:\n");
+        if(!verify_signiture(output,sender,reciever,amount,signature))
+            return 0;
+
+
+
         strcpy(trans_array[i].sender, sender);
         strcpy(trans_array[i].recipient, reciever);
         trans_array[i].amount = atoi(amount);
+        strcpy(trans_array[i].signature, signature);
 
 
         //Update quick ledger
@@ -277,12 +319,14 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in
             dict_insert(in_chain->quickledger, sender, &sender_future_balance, sizeof(sender_funds));
         }
 
-        if(!strcmp(sender, reciever) && in_chain->total_currency > CURRENCY_CAP && atoi(amount) != 0) {
-            return 1;
+        //Addresses are the same, Currency cap already met, and they are trying to give themselves more
+        if(!strcmp(sender, reciever) && in_chain->total_currency >= CURRENCY_CAP && atoi(amount) != 0) {
+            return 0;
         }
 
-        if(!strcmp(sender, reciever) && atoi(amount) != CURRENCY_SPEED) {
-            return 1;
+        //Addresses are the same, Trying to givethemselves more than 2
+        if(!strcmp(sender, reciever) && (in_chain->total_currency < CURRENCY_CAP) && (atoi(amount) != CURRENCY_SPEED) ) {
+            return 0;
         }
 
 
@@ -304,7 +348,7 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in
 
     }
 
-    return 0;
+    return 1;
 }
 
 char* hash_block(block* in_block) {
@@ -418,10 +462,11 @@ int destroy_keys(RSA** your_keys, char** pri_key, char** pub_key) {
 
 int message_signature(char* output, char* message, RSA* keypair, char* pub_key) {
 
+    printf("MESSAGE: '%s'\n", message);
 
     //Hash the message
     unsigned char data[32];
-    hash256(data,message + 2);
+    hash256(data,message);
 
     //Print the hash
     printf("HASHVALUE:\n");
@@ -468,6 +513,8 @@ int message_signature(char* output, char* message, RSA* keypair, char* pub_key) 
     RSA *rsa_pub = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
 
     rc = RSA_verify(NID_sha256, data,32,signature,256,rsa_pub);
+
+
     if(rc != 1) printf("ERROR VERIFYING!\n"); else printf("VERIFIED!\n");
 
 
@@ -477,7 +524,7 @@ int message_signature(char* output, char* message, RSA* keypair, char* pub_key) 
 
 bool verify_signiture(const char* input, char* sender, char* recipient, char* amount, char* signature) {
     
-    char data[1500] = {0};
+    char data[2000] = {0};
 
     strcat(data, sender);
     strcat(data, " ");
@@ -489,14 +536,14 @@ bool verify_signiture(const char* input, char* sender, char* recipient, char* am
     //sprintf(buffer, "%d", amount);
     strcat(data, amount);
 
-    //printf("MESSAGE: %s\n", data);
+    printf("MESSAGE: '%s'\n", data);
 
     unsigned char hash_value[32];
     hash256(hash_value,data);
-    /*printf("HASHVALUE:\n");
+    printf("HASHVALUE:\n");
     for(int i= 0; i < 32; i++)
         printf("%02x", hash_value[i]);
-    printf("\n");*/
+    printf("\n");
 
     unsigned char sig[256];
     char* pointer = signature;
@@ -527,12 +574,12 @@ bool verify_signiture(const char* input, char* sender, char* recipient, char* am
     char final_key[427] = {0};
     sprintf(final_key,"-----BEGIN RSA PUBLIC KEY-----\n%s\n-----END RSA PUBLIC KEY-----\n", our_key);
 
-    //printf("%s", final_key);
+    printf("%s", final_key);
 
     char* pub_key = final_key;
 
-    //printf("size of key: %lu\n", strlen(pub_key) + 1);
-    //printf("\n%s\n", pub_key);
+    printf("size of key: %lu\n", strlen(pub_key) + 1);
+    printf("\n%s\n", pub_key);
 
     BIO *bio = BIO_new_mem_buf((void*)pub_key, strlen(pub_key));
     RSA *rsa_pub = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
@@ -542,6 +589,23 @@ bool verify_signiture(const char* input, char* sender, char* recipient, char* am
     if(rc != 1) printf("Invalid."); else printf("Valid.");
 
     if(rc) return true; else return false;
+}
+
+int strip_pub_key(char* output, char* pub_key) {
+    char asci_pub_key[500] = {0};
+    int i = 31;
+    int x = 0;
+    while (pub_key[i] != '-') {
+        if(pub_key[i] != '\n') asci_pub_key[x++] = pub_key[i];
+        i++;
+    }
+
+    printf("length: %lu\n", strlen(asci_pub_key));
+    printf("PUBLIC KEY STRIPPED: %s\n", asci_pub_key);
+
+    strcpy(output, asci_pub_key);
+
+    return 0;
 }
 
 
