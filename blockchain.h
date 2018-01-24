@@ -4,7 +4,7 @@
 #include <openssl/pem.h>
 #include <openssl/err.h>
 
-#define BLOCK_STR_SIZE 10000
+#define BLOCK_STR_SIZE 30000
 #define BLOCK_DATA_SIZE 8
 #define BLOCK_BUFFER_SIZE 5000
 #define TRANS_LIST_SIZE 20
@@ -89,7 +89,7 @@ char* posts, unsigned int trans_list_length, long proof);
 //Block functions
 void print_block(blink* in_block, char separator);
 char* string_block(char* output, block* in_block);
-char* hash_block(block* in_block);
+char* hash_block(char* input, block* in_block);
 int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in_trans);
 int extract_transactions_raw(transaction* trans_array, char* in_trans);
 

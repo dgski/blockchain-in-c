@@ -1,6 +1,6 @@
 typedef struct message_item {
-    char toWhom[120];
-    char message[5000];
+    char toWhom[300];
+    char message[30000];
     unsigned int tries;
 } message_item;
 
@@ -8,10 +8,10 @@ typedef struct message_item {
 int mine();
 
 //Inbound thread
-int compare_length(char* input);
-int verify_foreign_block(char* input);
-int request_chain(char* address);
-int send_our_chain(char* address);
+int compare_length(const char* input);
+int verify_foreign_block(const char* input);
+int request_chain(const char* address);
+int send_our_chain(const char* address);
 
 //Workers
 void* in_server();

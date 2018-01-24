@@ -19,6 +19,7 @@ bt_node* bt_node_search(bt_node* head, char* key); //Search for node with key, i
 void bt_nodes_print(bt_node* in_node, int verbosity); //Prints nodes
 bt_node* bt_node_remove(bt_node* in_head, char* in_key, int keep_data); //Removes node properly from tree
 int bt_node_free(bt_node* in_node); //Frees node memory
+int bt_node_free_keep_data(bt_node* in_node); //Frees node memory - keeps data
 int bt_foreach(bt_node* in_node, int (*func)(bt_node* current_node),void* data); //Run given function for 
 int bt_print_key(bt_node* in_node); //Print key in node
 

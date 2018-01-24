@@ -13,8 +13,9 @@
 #include "data_containers/linked_list.h"
 #include "node.h"
 
-#define DEBUG 1
-#define MESSAGE_LENGTH 5000
+#define DEBUG 0
+#define MESSAGE_LENGTH 30000
+#define SHORT_MESSAGE_LENGTH 300
 
 /////////////////////////////////////////////////////
 //GLOBAL VARIABLES
@@ -30,12 +31,11 @@ char* pri_key;
 
 //Blockchains
 blockchain* our_chain;
-blockchain* foreign_chain;
 dict* foreign_chains;
 
 unsigned int node_earnings;
 int expected_length;
-int* beaten;
+int beaten;
 
 //Threads
 pthread_t inbound_network_thread;
@@ -59,7 +59,9 @@ int sock_out;
 //FUNCTIONS
 /////////////////////////////////////////////////////
 int print_balance(bt_node* current_node) {
-    
+
+    if(current_node == NULL || current_node->data == NULL) return 0;
+
     int* balance = current_node->data;
     printf("%.10s... : %d\n", current_node->key, *balance);
     return 1;
@@ -67,6 +69,8 @@ int print_balance(bt_node* current_node) {
 
 int print_keys(bt_node* current_node) {
     
+    if(current_node == NULL || current_node->data == NULL) return 0;
+
     printf("%s,", current_node->key);
     return 1;
 }
@@ -86,19 +90,13 @@ int mine() {
             fgets(buffer, sizeof(buffer), stdin);
         }
 
+        //Generate creation transaction
         char sig[513] = {0};
         char output[2500] = {0};
-
-
         if(our_chain->total_currency < CURRENCY_CAP) {
 
             string_trans_nosig(output, stripped_pub_key, stripped_pub_key, CURRENCY_SPEED);
-            printf("\n\n\n\n");
-            printf("OUT: '%s'\n", output);
-            printf("\n\n\n\n");
             message_signature(sig,output, our_keys,pub_key);
-            printf("\n\nSIG: '%s'\n", sig);
-            printf("\n\n\n\n");
 
             new_transaction(our_chain,stripped_pub_key,stripped_pub_key, CURRENCY_SPEED, sig);
         }
@@ -108,10 +106,11 @@ int mine() {
             new_transaction(our_chain,stripped_pub_key,stripped_pub_key, 0, sig);
         }
 
-        
+        //Actual mining
         unsigned int time_1 = time(NULL);
-        result = proof_of_work(beaten,our_chain->last_hash, our_chain->trans_hash);
+        result = proof_of_work(&beaten,our_chain->last_hash, our_chain->trans_hash);
         unsigned int time_2 = time(NULL);
+
 
         if(result > 0) {
             printf(ANSI_COLOR_GREEN);
@@ -131,7 +130,7 @@ int mine() {
             printf("Abandoning our in-progress block.\n");
             memset(our_chain->trans_list,0, sizeof(our_chain->trans_list));
             our_chain->trans_index = 0;
-            *beaten = 0;
+            beaten = 0;
         }
         int our_earnings = 0;
         void* our_ledger_earnings = dict_access(our_chain->quickledger,stripped_pub_key);
@@ -152,15 +151,18 @@ int mine() {
 //Send out current chain's length to everyone
 void* announce_length(list* in_list, li_node* in_item, void* data) {
 
-    char* data_string = malloc(in_item->size);
+    if(in_item == NULL) return NULL;
+    if(in_item->size > 299) return NULL;
+
+    char data_string[300];
     memcpy(data_string,in_item->data,in_item->size);
+    data_string[in_item->size] = 0;
 
     if(!strcmp(data_string, our_ip)) {
-        free(data_string);
         return NULL;
     }
 
-    char message[2000];
+    char message[300];
     strcpy(message, "L ");
     char length_buffer[21];
     sprintf(length_buffer,"%d",our_chain->length);
@@ -177,19 +179,17 @@ void* announce_length(list* in_list, li_node* in_item, void* data) {
     li_append(outbound_msg_queue,&chain_send, sizeof(chain_send));
     pthread_mutex_unlock(&our_mutex);
 
-    free(data_string);
-
     return NULL;
 }
 
 //Send out own ip address to everyone in other_nodes list
 void* announce_existance(list* in_list, li_node* in_item, void* data) {
     
-    char* data_string = malloc(in_item->size);
+    char data_string[MESSAGE_LENGTH];
     memcpy(data_string,in_item->data,in_item->size);
+    data_string[in_item->size] = 0;
 
     if(!strcmp(data_string, our_ip)){
-        free(data_string);
         return NULL;
     }
    
@@ -202,8 +202,6 @@ void* announce_existance(list* in_list, li_node* in_item, void* data) {
     pthread_mutex_lock(&our_mutex);
     li_append(outbound_msg_queue,&announcement,sizeof(announcement));
     pthread_mutex_unlock(&our_mutex);
-
-    free(data_string);
 
     return NULL;
 }
@@ -291,10 +289,12 @@ void register_new_node(char* input) {
 }
 
 //Send request for complete chain to address of claimant
-int request_chain(char* address) {
+int request_chain(const char* address) {
+
+    if(address == NULL) return 0;
 
     printf("Requesting chain from: %s, ", address);
-    char message[MESSAGE_LENGTH];
+    char message[SHORT_MESSAGE_LENGTH];
     strcpy(message, "C ");
     strcat(message, our_ip);
 
@@ -310,16 +310,19 @@ int request_chain(char* address) {
 }
 
 //Compare received chain length to our length, if bigger request more
-int compare_length(char* input) {
+int compare_length(const char* input) {
+
+    if(input == NULL) return 0;
+
+    if(strlen(input) > 200) return 0;
 
     printf("Checking foreign chain length... ");
     unsigned int foreign_length;
-    char Whom[200];
+    char Whom[300];
     sscanf(input, "%d %s", &foreign_length, Whom);
 
     if(foreign_length > our_chain->length) {
         printf("Someone claims they are a winner!\n");
-        expected_length = foreign_length;
         request_chain(Whom);
     }
     else
@@ -329,38 +332,34 @@ int compare_length(char* input) {
 }
 
 //Send out our complete chain as block messages
-int send_our_chain(char* address) {
+int send_our_chain(const char* address) {
 
-    if(strlen(address) > 120) return 0;
+    if(address == NULL) return 0;
+    
+    //Setup
+    if(strlen(address) > 200) return 0;
     printf("Sending blockchain to: %s, ", address);
     char message[MESSAGE_LENGTH] = {0};
-
     if(our_chain->head == NULL) return 0;
     blink* temp = our_chain->head;
-
+    
+    //Generate random chain id
     char rand_chain_id[60];
     int r = rand();   
     sprintf(rand_chain_id, "CHIN%010d.", r);
-    printf("AAAAA new message sig: %s\n",temp->data.trans_list[0].signature);
+
+    //Iterate over all blocks in chain
     for(int i = 0; i < our_chain->length + 1; i++) {
+        
+        strcpy(message, "B "); //Add message type
 
-        memset(message,0,MESSAGE_LENGTH);
-        strcpy(message, "B+ ");
-
-        char block[5000] = {0};
-        strcat(message, rand_chain_id);
-
+        strcat(message, rand_chain_id); //Add random chain id
         char the_length[12];
         sprintf(the_length,"%010d.", our_chain->length);
-        strcat(message, the_length);
-
-        printf("XXXXXX new message sig: %s\n",temp->data.trans_list[0].signature);
-
+        strcat(message, the_length); //Add chain length
+        char block[5000] = {0};
         string_block(block,&temp->data);
-
-
-
-        strcat(message, block);
+        strcat(message, block); //Add block
 
         message_item the_chain;
         setup_message(&the_chain);
@@ -377,12 +376,9 @@ int send_our_chain(char* address) {
 
 int prune_chains(bt_node* current_node) {
 
-    alt_chain* temp = current_node->data;
-    printf("LAST UPDATED TIME: %u\n", temp->last_time);
-    printf("CURRENT TIME: %ld\n", time(NULL));
-    printf("DIFFERENCE: %ld\n", time(NULL) - temp->last_time);
+    if(current_node == NULL || current_node->data == NULL) return 0;
 
-    if( (time(NULL) - temp->last_time) > 60 ) {
+    if( (time(NULL) - ((alt_chain*)current_node->data)->last_time) > 60 ) {
         printf("Pruning chain with ID: '%s'\n", current_node->key);
         dict_del_elem(foreign_chains,current_node->key,0);
     }
@@ -391,7 +387,7 @@ int prune_chains(bt_node* current_node) {
 }
 
 
-int verify_foreign_block(char* input) {
+int verify_foreign_block(const char* input) {
 
     char f_block[MESSAGE_LENGTH] = {0};
     strcpy(f_block, input);
@@ -412,18 +408,13 @@ int verify_foreign_block(char* input) {
     if(this_chain == NULL && atoi(index) == 0) {
 
         printf("Creating chain for this block.\n");
+        alt_chain new_for_chain;
+        new_for_chain.expected_length = atoi(exp_length);
+        new_for_chain.expected_index = 1;
+        new_for_chain.last_time = time(NULL);
+        new_for_chain.the_chain = new_chain();
+        dict_insert(foreign_chains,chain_id,&new_for_chain,sizeof(new_for_chain));
 
-        this_chain = malloc(sizeof(this_chain));
-        this_chain->expected_length = atoi(exp_length);
-        this_chain->expected_index = 1;
-        this_chain->the_chain = malloc(sizeof(blockchain));
-        this_chain->last_time = time(NULL);
-        this_chain->the_chain = new_chain();
-        this_chain->the_chain->quickledger->head = NULL;
-
-        dict_insert(foreign_chains,chain_id,this_chain,sizeof(alt_chain));
-
-        free(this_chain);
         return 1;
     }
     
@@ -439,7 +430,6 @@ int verify_foreign_block(char* input) {
     else {
         this_chain->expected_index++;
     }
-
 
     long the_proof;
     sscanf(proof,"%020ld",&the_proof);
@@ -494,7 +484,7 @@ int verify_foreign_block(char* input) {
                 our_chain = this_chain->the_chain;
                 dict_del_elem(foreign_chains,chain_id,1);
             
-                *beaten = 1;
+                beaten = 1;
             }
             else {
                 printf("Received end of chain. Not longer. Throwing away.\n");
@@ -518,21 +508,18 @@ int verify_foreign_block(char* input) {
 //Message type: T: transaction, P: post, B: block, N: new node, L: blockchain length, C: chain
 void process_message(const char* in_msg) {
 
+    if(in_msg == NULL) return;
+
     char to_process[MESSAGE_LENGTH] = {0};
     strcpy(to_process, in_msg);
 
     char* token = strtok(to_process," ");
-    //printf("MESSAGE TYPE: %s\n", token);
-
-    //printf("MESSAGE CONTENTS: %s\n", in_msg + 2);
 
     if(!strcmp(token, "T"))
         insert_trans(to_process + 2);
     if(!strcmp(token, "P"))
         insert_post(to_process + 2);
-    if(!strcmp(token, "B>"))
-        verify_foreign_block(to_process + 3);
-    if(!strcmp(token, "B+"))
+    if(!strcmp(token, "B"))
         verify_foreign_block(to_process + 3);
     if(!strcmp(token, "N"))
         register_new_node(to_process + 2);
@@ -590,13 +577,9 @@ void* process_inbound(list* in_list, li_node* input, void* data) {
 
     if(input == NULL) return NULL;
 
-    //char* the_message = malloc(input->size + 1);
-    //memset(the_message, 0, input->size + 1);
-
     char the_message[MESSAGE_LENGTH] = {0};
     memcpy(the_message,input->data,input->size);
     process_message(the_message);
-    //free(the_message);
 
     li_delete_node(in_list, input);
 
@@ -668,6 +651,18 @@ int read_config() {
     return 0;
 }
 
+//Frees memory of all chains in a dict
+int destroy_chains_in_dict(bt_node* current_node) {
+
+    if(current_node == NULL) return 0;
+
+    alt_chain* to_destroy = (alt_chain*)current_node->data;
+    discard_chain(to_destroy->the_chain);
+    
+    return 1;
+}
+
+
 //Free all outstanding memory
 void graceful_shutdown(int dummy) {
     printf("\nCommencing graceful shutdown!\n");
@@ -679,7 +674,8 @@ void graceful_shutdown(int dummy) {
 
     //Discard blockchains
     discard_chain(our_chain);
-    discard_chain(foreign_chain);
+    dict_foreach(foreign_chains, destroy_chains_in_dict, NULL);
+    dict_discard(foreign_chains);
     
     pthread_mutex_destroy(&our_mutex);
 
@@ -688,7 +684,6 @@ void graceful_shutdown(int dummy) {
 
     nn_close(sock_in);
     nn_close(sock_out);
-    free(beaten);
     exit(0);
 }
 
@@ -708,20 +703,13 @@ int main(int argc, char* argv[]) {
 
     //Create our blockchain
     our_chain = new_chain();
-    beaten = malloc(sizeof(int));
-    *beaten = 0;
+    beaten = 0;
 
     //Generate our pri/pub address keys
-    char hello[] = "hello";
-    pri_key = hello;
     create_keys(&our_keys,&pri_key,&pub_key);
     strip_pub_key(stripped_pub_key, pub_key);
-
-
-
     printf("Created Keypair:\n\n");
     printf("%s%s\n\n", pri_key, pub_key);
-
 
     //Create foreign chain dict
     foreign_chains = dict_create();
@@ -752,7 +740,6 @@ int main(int argc, char* argv[]) {
 
     //Create execution queue
     inbound_msg_queue = list_create();
-
 
     //Create workers
     pthread_mutex_t our_mutex = PTHREAD_MUTEX_INITIALIZER;

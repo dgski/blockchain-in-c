@@ -25,7 +25,8 @@ blockchain* new_chain() {
     in_chain->last_proof_of_work = 100;
     memset(in_chain->trans_list, 0, sizeof(in_chain->trans_list));
     memset(in_chain->new_posts, 0, sizeof(in_chain->new_posts));
-    memcpy(in_chain->last_hash, hash_block(&in_chain->head->data),HASH_HEX_SIZE);
+
+    hash_block(in_chain->last_hash, &in_chain->head->data);
     
     in_chain->trans_index = 0;
     in_chain->length = 0;
@@ -161,7 +162,8 @@ blink* append_current_block(blockchain* in_chain, long in_proof) {
     memcpy(the_block->data.previous_hash,in_chain->last_hash, HASH_HEX_SIZE);
 
     //Register new block hash
-    memcpy(in_chain->last_hash, hash_block(&the_block->data), HASH_HEX_SIZE);
+    hash_block(in_chain->last_hash, &in_chain->head->data);
+
 
     //Reset blockchain intake
     memset(in_chain->trans_list,0, sizeof(in_chain->trans_list));
@@ -195,7 +197,8 @@ blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int i
     memcpy(the_block->data.previous_hash,in_chain->last_hash, HASH_HEX_SIZE);
 
     //Register new block hash
-    memcpy(in_chain->last_hash, hash_block(&the_block->data), HASH_HEX_SIZE);
+    hash_block(in_chain->last_hash, &in_chain->head->data);
+
 
     //Reset blockchain intake
     memset(in_chain->trans_list,0, sizeof(in_chain->trans_list));
@@ -320,10 +323,6 @@ int extract_transactions_raw(transaction* trans_array, char* input_trans_string)
         pointer = strtok(NULL,"-");
         trans_strings[i++] = pointer;
     }
-    
-    for(int i = 0; trans_strings[i] != 0; i++) {
-        printf("TRANSACTION: %s\n", trans_strings[i]);
-    }
 
     char* sender;
     char* reciever;
@@ -333,24 +332,17 @@ int extract_transactions_raw(transaction* trans_array, char* input_trans_string)
     for(int i = 0; trans_strings[i] != 0; i++) {
 
         sender = strtok(trans_strings[i],":");
-        printf("sender: %s\n", sender);
+        //printf("sender: %s\n", sender);
         reciever = strtok(NULL, ":");
-        printf("reciever: %s\n", reciever);
+        //printf("reciever: %s\n", reciever);
         amount = strtok(NULL, ":");
-        printf("amount: %s\n", amount);
+        //printf("amount: %s\n", amount);
         signature = strtok(NULL, ":");
-        printf("signature: %s\n", signature);
+        //printf("signature: %s\n", signature);
 
         char output[5000] = {0};
         string_trans_nosig(output,sender,reciever,atoi(amount));
-        /*
-        printf("\n\n\n\n");
-        printf("OUT: '%s'\n", output);
-        printf("\n\n\n\n");
-        printf("\n\nSIG: '%s'\n", signature);
-        printf("\n\n\n\n");
-        */
-
+       
         strcpy(trans_array[i].sender, sender);
         strcpy(trans_array[i].recipient, reciever);
         trans_array[i].amount = atoi(amount);
@@ -395,26 +387,16 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in
     for(int i = 0; trans_strings[i] != 0; i++) {
 
         sender = strtok(trans_strings[i],":");
-        printf("sender: %s\n", sender);
+        //printf("sender: %s\n", sender);
         reciever = strtok(NULL, ":");
-        printf("reciever: %s\n", reciever);
+        //printf("reciever: %s\n", reciever);
         amount = strtok(NULL, ":");
-        printf("amount: %s\n", amount);
+        //printf("amount: %s\n", amount);
         signature = strtok(NULL, ":");
-        printf("signature: %s\n", signature);
+        //printf("signature: %s\n", signature);
 
         char output[2500] = {0};
         string_trans_nosig(output,sender,reciever,atoi(amount));
-        /*
-        printf("\n\n\n\n");
-        printf("OUT: '%s'\n", output);
-        printf("\n\n\n\n");
-        printf("\n\nSIG: '%s'\n", signature);
-        printf("\n\n\n\n");
-        */
-
-
-
 
         printf("VERIFYING TRANSACTION:\n");
         if(!verify_signiture(output,sender,reciever,amount,signature))
@@ -473,28 +455,28 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in
     return 1;
 }
 
-char* hash_block(block* in_block) {
+//Hash this block
+char* hash_block(char* output, block* in_block) {
 
     char block_string[BLOCK_STR_SIZE];
     string_block(block_string, in_block);
 
-    unsigned char* hash_value =  malloc(HASH_SIZE);
+    unsigned char hash_value[HASH_SIZE];
     hash256(hash_value, block_string);
 
-    char* hash_hex = malloc(HASH_HEX_SIZE);
-    memset(hash_hex, 0, HASH_HEX_SIZE);
-
     char buffer[3];
+    char hex_hash[HASH_HEX_SIZE] = {0};
     for(int i = 0; i < HASH_SIZE; i++) {
         memset(buffer, 0, sizeof(buffer));
         sprintf(buffer,"%02x", hash_value[i]);
-        strcat(hash_hex, buffer);
+        strcat(hex_hash, buffer);
     }
 
-    free(hash_value);
+    strcpy(output,hex_hash);
 
+    output[HASH_HEX_SIZE] = 0;
 
-    return hash_hex;
+    return output;
 }
 
 bool valid_proof(char* last_hash, char* trans_hash,  long proof) {
@@ -507,7 +489,7 @@ bool valid_proof(char* last_hash, char* trans_hash,  long proof) {
     hash256(hash_value,guess);
 
     if(1)
-        return (hash_value[0] == '0' && hash_value[1] == '0' /*&& hash_value[2] == '0' && (hash_value[3] > 60 && hash_value[3] < 127)*/);
+        return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' /*&& (hash_value[3] > 60 && hash_value[3] < 127)*/);
     else
         return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' && (hash_value[3] > 60 && hash_value[3] < 127));
 
@@ -545,9 +527,7 @@ long proof_of_work(int* beaten, char* last_hash, char* trans_hash) {
 //Create keys for private_public pair
 int create_keys(RSA** your_keys, char** pri_key, char** pub_key) {
 
-    printf("PRI_KEY: %s\n", *pri_key);
-
-//Create keypair
+    //Create keypair
     *your_keys = RSA_generate_key(2048,3,NULL,NULL);
 
     //Create structures to seperate keys
@@ -592,22 +572,14 @@ int destroy_keys(RSA** your_keys, char** pri_key, char** pub_key) {
 
 int message_signature(char* output, char* message, RSA* keypair, char* pub_key) {
 
-    printf("MESSAGE: '%s'\n", message);
 
     //Hash the message
     unsigned char data[32];
     hash256(data,message);
 
-    //Print the hash
-    printf("HASHVALUE:\n");
-    for(int i= 0; i < 32; i++)
-        printf("%02x", data[i]);
-    printf("\n");
-
     //Prepare signature buffer
-    unsigned char* sig = malloc(RSA_size(keypair));
+    unsigned char sig[RSA_size(keypair)];
     unsigned int sig_len = 0;
-    if(sig == NULL) return 0;
 
     //Create signature
     int rc = RSA_sign(NID_sha256,data,32,sig, &sig_len,keypair);
@@ -620,9 +592,6 @@ int message_signature(char* output, char* message, RSA* keypair, char* pub_key) 
         strcat(output,buf);
     }
 
-    free(sig);
-    printf("ASCI SIG:\n%s\n", output);
-
     //Verify
     unsigned char signature[256];
     char* pointer = output;
@@ -634,15 +603,14 @@ int message_signature(char* output, char* message, RSA* keypair, char* pub_key) 
         pointer = pointer + 2;
         signature[i] = value;
     }
-    printf("\n");
 
-    printf("size of key: %lu\n", strlen(pub_key) + 1);
-    printf("%s\n", pub_key);
-
-    BIO *bio = BIO_new_mem_buf((void*)pub_key, strlen(pub_key));
-    RSA *rsa_pub = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
+    BIO* bio = BIO_new_mem_buf((void*)pub_key, strlen(pub_key));
+    RSA* rsa_pub = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
 
     rc = RSA_verify(NID_sha256, data,32,signature,256,rsa_pub);
+
+    BIO_free(bio);
+    RSA_free(rsa_pub);
 
 
     if(rc != 1) printf("ERROR VERIFYING!\n"); else printf("VERIFIED!\n");
@@ -653,7 +621,7 @@ int message_signature(char* output, char* message, RSA* keypair, char* pub_key) 
 }
 
 bool verify_signiture(const char* input, char* sender, char* recipient, char* amount, char* signature) {
-    
+    /*
     printf(ANSI_COLOR_RED);
     printf("\n\n\n\n\n\n\n");
     printf("SENDER: '%s'\n", sender);
@@ -662,13 +630,7 @@ bool verify_signiture(const char* input, char* sender, char* recipient, char* am
     printf("SIGNATURE: '%s'\n", signature);
     printf("\n\n\n\n\n\n\n");
     printf(ANSI_COLOR_RESET);
-
-
-
-
-
-
-
+    */
 
 
     char data[2000] = {0};
@@ -683,14 +645,8 @@ bool verify_signiture(const char* input, char* sender, char* recipient, char* am
     //sprintf(buffer, "%d", amount);
     strcat(data, amount);
 
-    printf("MESSAGE: '%s'\n", data);
-
     unsigned char hash_value[32];
     hash256(hash_value,data);
-    printf("HASHVALUE:\n");
-    for(int i= 0; i < 32; i++)
-        printf("%02x", hash_value[i]);
-    printf("\n");
 
     unsigned char sig[256];
     char* pointer = signature;
@@ -701,9 +657,6 @@ bool verify_signiture(const char* input, char* sender, char* recipient, char* am
         pointer = pointer + 2;
         sig[i] = value;
     }
-    //printf("\n");
-
-    //printf("\n\nASCI SIG:\n%s\n\n", signature);
 
     char our_key[1000] = {0};
     char* new_key_point = our_key;
@@ -721,12 +674,7 @@ bool verify_signiture(const char* input, char* sender, char* recipient, char* am
     char final_key[427] = {0};
     sprintf(final_key,"-----BEGIN RSA PUBLIC KEY-----\n%s\n-----END RSA PUBLIC KEY-----\n", our_key);
 
-    printf("%s", final_key);
-
     char* pub_key = final_key;
-
-    printf("size of key: %lu\n", strlen(pub_key) + 1);
-    printf("\n%s\n", pub_key);
 
     BIO *bio = BIO_new_mem_buf((void*)pub_key, strlen(pub_key));
     RSA *rsa_pub = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
@@ -747,8 +695,8 @@ int strip_pub_key(char* output, char* pub_key) {
         i++;
     }
 
-    printf("length: %lu\n", strlen(asci_pub_key));
-    printf("PUBLIC KEY STRIPPED: %s\n", asci_pub_key);
+    //printf("length: %lu\n", strlen(asci_pub_key));
+    //printf("PUBLIC KEY STRIPPED: %s\n", asci_pub_key);
 
     strcpy(output, asci_pub_key);
 
