@@ -8,6 +8,7 @@
 #define BLOCK_DATA_SIZE 8
 #define BLOCK_BUFFER_SIZE 5000
 #define TRANS_LIST_SIZE 20
+#define TRANS_STRING_LENGTH 2000
 #define HASH_SIZE 32
 #define HASH_HEX_SIZE 65
 #define PUBLIC_ADDRESS_SIZE 500
@@ -90,7 +91,7 @@ char* posts, unsigned int trans_list_length, long proof);
 void print_block(blink* in_block, char separator);
 char* string_block(char* output, block* in_block);
 char* hash_block(char* input, block* in_block);
-int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in_trans);
+int extract_transactions(blockchain* in_chain,transaction* trans_array, const char* in_trans);
 int extract_transactions_raw(transaction* trans_array, char* in_trans);
 
 //Transaction functions

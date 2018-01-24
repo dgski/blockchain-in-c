@@ -26,6 +26,7 @@
         "__string": "c",
         "dict.h": "c",
         "pem.h": "c",
-        "rsa.h": "c"
+        "rsa.h": "c",
+        "__bit_reference": "c"
     }
 }

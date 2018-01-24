@@ -10,7 +10,7 @@ bt_node* bt_node_create(char* in_key, void* in_data, size_t in_size) {
     if(in_key == NULL || in_data == NULL) return NULL;
     
     bt_node* temp = malloc(sizeof(bt_node));
-    temp->key = malloc(strlen(in_key));
+    temp->key = malloc(strlen(in_key) +1);
     strcpy(temp->key, in_key);
     temp->data = malloc(in_size);
     memcpy(temp->data, in_data, in_size);

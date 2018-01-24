@@ -258,12 +258,13 @@ void li_foreach(list* in_list, void* (*func)(list* in_list, li_node* input, void
 
     li_node* temp = in_list->head;
     while(temp != NULL) {
+        
+        li_node* next = temp->next;
+ 
         int to_delete = (int)(*func)(in_list, temp, data);
-        /*
-        if(to_delete)
-            li_delete_node(in_list,temp);*/
 
-        temp = temp->next;
+        if(next == NULL) return;
+        temp = next;
     }
     return;
 }

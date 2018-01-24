@@ -26,9 +26,9 @@ void* announce_length(list* in_list, li_node* in_item, void* data);
 void* announce_existance(list* in_list, li_node* in_item, void* data);
 
 
-int insert_trans(char* input);
+int insert_trans(const char* input);
 int insert_post(const char* input);
-void register_new_node(char* input);
+void register_new_node(const char* input);
 
 
 void process_message(const char* in_msg);

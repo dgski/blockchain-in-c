@@ -353,31 +353,78 @@ int extract_transactions_raw(transaction* trans_array, char* input_trans_string)
     return 1;
 }
 
+/*
+int validate_and_insert_trans(blockchain* in_chain, transaction* trans_array) {
 
-int extract_transactions(blockchain* in_chain,transaction* trans_array, char* in_trans) {
-    /*
-    printf("\n\n\n\n\n\n");
-    printf("%s\n", in_trans);
-    printf("\n\n\n\n\n\n");
-    */
+    for(int i = 0; trans_array[i] <20; i++) {
+
+        char output[2500] = {0};
+        string_trans_nosig(output,trans_array->sender,trans_array->recipient,atoi(trans_array->amount));
+
+        printf("VERIFYING TRANSACTION:\n");
+        if(!verify_signiture(output,sender,reciever,amount,signature))
+            return 0;
+
+        //Transaction is properly signed... now what? Update Quickledger.
+
+        //Addresses are different - cuurency generation
+        if(strcmp(sender, reciever)) {
+            void* sender_funds = dict_access(in_chain->quickledger, sender);
+            int sender_future_balance = 0;
+            if(sender_funds != NULL)
+                sender_future_balance = *((int*)sender_funds) - atoi(amount);
+
+            dict_insert(in_chain->quickledger, sender, &sender_future_balance, sizeof(sender_funds));
+        }
+
+        //Addresses are the same, Currency cap already met, and they are trying to give themselves more
+        if(!strcmp(sender, reciever) && in_chain->total_currency >= CURRENCY_CAP && atoi(amount) != 0) {
+            //return 0;
+            return 1; //temp
+        }
+
+        //Addresses are the same, Trying to givethemselves more than 2
+        if(!strcmp(sender, reciever) && (in_chain->total_currency < CURRENCY_CAP) && (atoi(amount) != CURRENCY_SPEED) ) {
+            //return 0;
+            return 1; //temp
+        }
+
+
+        in_chain->total_currency += CURRENCY_SPEED;
+
+        void* recipient_funds = dict_access(in_chain->quickledger, reciever);
+        int recipient_future_balance = 0;
+        if(recipient_funds != NULL)
+            recipient_future_balance = *((int*)recipient_funds);
+
+        recipient_future_balance += atoi(amount);
+        dict_insert(in_chain->quickledger, reciever, &recipient_future_balance, sizeof(recipient_future_balance));
+
+
+    }
+
+    memcpy(in_chain->trans_list,trans_array,sizeof(transaction) * 20);
+
+
+    return 1;
+}*/
+
+
+int extract_transactions(blockchain* in_chain,transaction* trans_array, const char* in_trans) {
+
+    char the_trans_chars[30000];
+    strcpy(the_trans_chars,in_trans);
 
 
     char* trans_strings[20] = {0};
 
-    char* pointer = strtok(in_trans,"-");
+    char* pointer = strtok(the_trans_chars,"-");
     trans_strings[0] = pointer;
     int i = 1;
     while(pointer != NULL) {
         pointer = strtok(NULL,"-");
         trans_strings[i++] = pointer;
     }
-    /*
-    for(int i = 0; trans_strings[i] != 0; i++) {
-            printf("\n\n\n\n\n\n");
-        printf("TRANSACTION: %s\n", trans_strings[i]);
-            printf("\n\n\n\n\n\n");
-
-    }*/
 
     char* sender;
     char* reciever;
@@ -505,8 +552,11 @@ long proof_of_work(int* beaten, char* last_hash, char* trans_hash) {
         //printf("%d\n", proof);
         proof += 1;
         
-        if(*beaten) {
+        if(*beaten == 1) {
             return -1;
+        }
+        if(*beaten == 2) {
+            return -2;
         }
         if(strcmp(old_trans_hash, trans_hash)) {
             printf("Hash Changed. Resetting Nonce.\n");
@@ -550,9 +600,14 @@ int create_keys(RSA** your_keys, char** pri_key, char** pub_key) {
     BIO_read(pri,*pri_key,pri_len);
     BIO_read(pub, *pub_key,pub_len);
 
+
     //Terminate strings
     (*pri_key)[pri_len] = '\0';
     (*pub_key)[pub_len] = '\0';
+
+    //Free memory
+    BIO_vfree(pri);
+    BIO_vfree(pub);
 
 
     return 1;
@@ -680,6 +735,11 @@ bool verify_signiture(const char* input, char* sender, char* recipient, char* am
     RSA *rsa_pub = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
 
     int rc = RSA_verify(NID_sha256, hash_value,32,sig,256,rsa_pub);
+
+    BIO_free_all(bio);
+    RSA_free(rsa_pub);
+
+
     //printf("VERIFY RETURN: %d\n", rc);
     if(rc != 1) printf("Invalid.\n"); else printf("Valid.\n");
 
