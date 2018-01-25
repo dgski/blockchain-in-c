@@ -27,6 +27,7 @@
         "dict.h": "c",
         "pem.h": "c",
         "rsa.h": "c",
-        "__bit_reference": "c"
+        "__bit_reference": "c",
+        "iosfwd": "c"
     }
 }

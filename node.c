@@ -23,6 +23,7 @@
 
 //Identification
 char our_ip[300] = {0};
+char config_file[300] = {0};
 RSA* our_keys;
 char* pub_key;
 char stripped_pub_key[500];
@@ -56,8 +57,10 @@ int sock_out;
 
 
 /////////////////////////////////////////////////////
-//FUNCTIONS
+//UTILITY FUNCTIONS
 /////////////////////////////////////////////////////
+
+//Print remainding balance in quickledger
 int print_balance(bt_node* current_node) {
 
     if(current_node == NULL || current_node->data == NULL) return 0;
@@ -67,6 +70,7 @@ int print_balance(bt_node* current_node) {
     return 1;
 }
 
+//Print remaining keys within quickledger
 int print_keys(bt_node* current_node) {
     
     if(current_node == NULL || current_node->data == NULL) return 0;
@@ -75,8 +79,41 @@ int print_keys(bt_node* current_node) {
     return 1;
 }
 
+//Print outbound queue
+void* print_queue(void* input) {
+
+    if(input == NULL) return NULL;
+
+    message_item* item = (message_item*)input;
+    printf("- toWhom: %s, ", item->toWhom);
+    printf("Message: %s\n", item->message);
+    return NULL;
+
+}
+
+//Empty message
+void setup_message(message_item* in_message) {
+    
+    in_message->tries = 0;
+    memset(in_message->toWhom, 0, sizeof(in_message->toWhom));
+    return;
+}
+
+//Frees memory of all chains in a dict
+int destroy_chains_in_dict(bt_node* current_node) {
+
+    if(current_node == NULL) return 0;
+
+    alt_chain* to_destroy = (alt_chain*)current_node->data;
+    discard_chain(to_destroy->the_chain);
+    
+    return 1;
+}
 
 
+/////////////////////////////////////////////////////
+//CORE FUNCTIONS
+/////////////////////////////////////////////////////
 
 //Continually search for proper proof of work
 int mine() {
@@ -85,12 +122,13 @@ int mine() {
     long result;
     
     while(true) {
+
         if(DEBUG) {
             char buffer[120] = {0};
             fgets(buffer, sizeof(buffer), stdin);
         }
 
-        //Generate creation transaction
+        //Generate creation transaction with signature
         char sig[513] = {0};
         char output[2500] = {0};
         if(our_chain->total_currency < CURRENCY_CAP) {
@@ -109,13 +147,12 @@ int mine() {
         result = proof_of_work(&beaten,our_chain->last_hash, our_chain->trans_hash);
         unsigned int time_2 = time(NULL);
 
-
+        //Found necessary proof of work
         if(result > 0) {
             printf(ANSI_COLOR_GREEN);
             printf("\nMINED: %.4f min(s)\n", (time_2 - time_1)/60.0);
 
             our_chain->last_proof_of_work = result;
-            
 
             blink* a_block = append_current_block(our_chain, our_chain->last_proof_of_work);
             print_block(a_block,'-');
@@ -124,20 +161,25 @@ int mine() {
             li_foreach(other_nodes,announce_length, NULL);
 
             }
+
+        //Someone beat us
         else if(result == -1) {
             printf("Abandoning our in-progress block.\n");
             memset(our_chain->trans_list,0, sizeof(our_chain->trans_list));
             our_chain->trans_index = 0;
             beaten = 0;
         }
+
+        //Program is closing
         else if(result == -2) {
             return 0;
         }
+
+        //Access our earnings from the quickledger library
         int our_earnings = 0;
         void* our_ledger_earnings = dict_access(our_chain->quickledger,stripped_pub_key);
         if(our_ledger_earnings != NULL)
             our_earnings += *((int*)our_ledger_earnings);
-
 
         printf("\nQUICKLEDGER BALANCES:\n");
         dict_foreach(our_chain->quickledger, print_balance, NULL);
@@ -219,16 +261,12 @@ int insert_trans(const char* input) {
     char* signature = strtok(NULL, " ");
     
     
-    /*
     //Check if user has enough in quick ledger
     void* sender_balance = dict_access(our_chain->quickledger, sender);
-
     if(sender_balance == NULL || (int)sender_balance < atoi(amount)) {
         printf("Insufficient Funds.\n");
         return 0;
     }
-    */
-
 
     //Check if transaction is signed
     if(!verify_signiture(buffer,sender, recipient, amount, signature))
@@ -267,7 +305,6 @@ void register_new_node(const char* input) {
     char add_who[SHORT_MESSAGE_LENGTH];
     strcpy(add_who,input);
     
-
     printf("Registering New Node...");
     if(li_search(other_nodes,NULL,add_who,strlen(add_who) + 1)) {
         printf(" Already registered. ");
@@ -278,7 +315,7 @@ void register_new_node(const char* input) {
     }
 
     printf("Sending chain length to: %s\n ", add_who);
-    char message[2000];
+    char message[1000];
     sprintf(message,"L %d ",our_chain->length);
     strcat(message, our_ip);
 
@@ -555,17 +592,19 @@ void* in_server() {
 
     while(true) {
         int bytes = nn_recv(sock_in, buf, sizeof(buf), 0);
+        
+        pthread_mutex_lock(&our_mutex);
         if(bytes > 0) {
             buf[bytes] = 0;
             printf("\nRecieved %d bytes: \"%s\"\n", bytes, buf);
 
-            pthread_mutex_lock(&our_mutex);
             li_append(inbound_msg_queue,buf,bytes);
-            pthread_mutex_unlock(&our_mutex);            
         }
 
         if(close_threads)
-                return NULL;
+                return 0;
+        pthread_mutex_unlock(&our_mutex);            
+
     }
     return 0;
 }
@@ -639,48 +678,65 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
     return NULL;
 }
 
-//Print outbound queue
-void* print_queue(void* input) {
-
-    if(input == NULL) return NULL;
-
-    message_item* item = (message_item*)input;
-    printf("- toWhom: %s, ", item->toWhom);
-    printf("Message: %s\n", item->message);
-    return NULL;
-
-}
 
 //Read configuration file
 int read_config() {
-    FILE* config = fopen("node.cfg", "r");
+
+    printf("Using configuration file: '%s'\n", config_file);
+
+    FILE* config = fopen(config_file, "r");
     if(config == NULL) return 0;
 
-    char buffer[120] = {0};
+    printf("Reading configuration file...\n");
+
+    char buffer[300] = {0};
     while (fgets(buffer, sizeof(buffer), config)) {
         if(buffer[strlen(buffer) -1] == '\n') buffer[strlen(buffer) -1] = 0;
         li_append(other_nodes, buffer, strlen(buffer) + 1);
     }
     fclose(config);
 
-    return 0;
-}
-
-//Frees memory of all chains in a dict
-int destroy_chains_in_dict(bt_node* current_node) {
-
-    if(current_node == NULL) return 0;
-
-    alt_chain* to_destroy = (alt_chain*)current_node->data;
-    discard_chain(to_destroy->the_chain);
-    
     return 1;
 }
+
+
+void* li_write_string_file(list* in_list, li_node* in_node, void* data) {
+
+    if(in_node == NULL || in_node->size > 300) return NULL;
+    FILE* our_config = (FILE*)data;
+
+    char string[300] = {0};
+    memcpy(string,in_node->data,in_node->size);
+    string[in_node->size] = '\n';
+    printf("Saving to file: '%s'\n", string);
+    fwrite(string , 1 , strlen(string) + 2 , our_config);
+
+    return NULL;
+}
+
+//Write configuration file
+int write_config() {
+    printf("Saving ip addresses to file '%s': \n", "node3.cfg");
+    FILE* config = fopen("node3.cfg", "w"); //config_file
+    if(config == NULL) return 0;
+
+    li_foreach(other_nodes,li_write_string_file,config);
+
+    fclose(config);
+
+    return 0;
+
+}
+
+
 
 
 //Free all outstanding memory
 void graceful_shutdown(int dummy) {
     printf("\nCommencing graceful shutdown!\n");
+
+    //Write out new node list to file
+    write_config();
 
     close_threads = 1;
     beaten = 2;
@@ -715,13 +771,7 @@ void graceful_shutdown(int dummy) {
     exit(0);
 }
 
-//Empty message
-void setup_message(message_item* in_message) {
-    
-    in_message->tries = 0;
-    memset(in_message->toWhom, 0, sizeof(in_message->toWhom));
-    return;
-}
+
 
 //The star of the show
 int main(int argc, char* argv[]) {
@@ -744,12 +794,30 @@ int main(int argc, char* argv[]) {
 
     //Create list of other nodes
     other_nodes = list_create();
-    read_config();
 
     //Get our ip address from argument
     if(argc < 2) strcpy(our_ip, "ipc:///tmp/pipeline_0.ipc");
-    else if( strlen(argv[1]) < 300) strcpy(our_ip, argv[1]);
-    else printf("Provide a valid address with a length less than 300 characters.");
+    else if(strlen(argv[1]) < 300) strcpy(our_ip, argv[1]);
+    else printf("Provide a valid address with a length less than 300 characters.\n");
+
+    //Get our config file from argument
+    if(argc < 3) strcpy(config_file, "node.cfg");
+    else if( argc == 3 && strlen(argv[2]) < 300) {
+        strcpy(config_file, argv[2]);
+    } 
+    else{
+        printf("Provide a valid config file path with a length less than 300 characters.\n");
+        return 0;
+    }
+    int success = read_config();
+    if(success) {
+        printf("All good.\n");
+    }
+    else {
+        printf("Please provide a proper configuration file.\n");
+        return 0;
+    }
+
 
     //Create list of outbound msgs & add our ip to be sent to all nodes
     outbound_msg_queue = list_create();
