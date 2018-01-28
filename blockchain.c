@@ -29,6 +29,7 @@ blockchain* new_chain() {
     hash_block(in_chain->last_hash, &in_chain->head->data);
     
     in_chain->trans_index = 0;
+    in_chain->post_index = 0;
     in_chain->length = 0;
 
     in_chain->quickledger = dict_create();
@@ -673,6 +674,58 @@ int message_signature(char* output, char* message, RSA* keypair, char* pub_key) 
 
 
     return 1;
+}
+
+bool verify_message(const char* input, char* sender, char* signature) {
+
+    unsigned char hash_value[32];
+    hash256(hash_value,input);
+
+    unsigned char sig[256];
+    char* pointer = signature;
+    //extract sig from hex asci
+    for(int i = 0; i < 256; i++) {
+        unsigned int value;
+        sscanf(pointer, "%02x", &value);
+        pointer = pointer + 2;
+        sig[i] = value;
+    }
+
+    char our_key[1000] = {0};
+    char* new_key_point = our_key;
+    char* send_pointer = sender;
+
+    for(int i = 0; i < 5; i++) {
+        memcpy(new_key_point,send_pointer,64);
+        new_key_point = new_key_point + 64;
+        send_pointer = send_pointer + 64;
+        *new_key_point++ = '\n';
+    }
+
+    memcpy(new_key_point,send_pointer,41);
+
+    char final_key[427] = {0};
+    sprintf(final_key,"-----BEGIN RSA PUBLIC KEY-----\n%s\n-----END RSA PUBLIC KEY-----\n", our_key);
+
+    char* pub_key = final_key;
+
+    BIO *bio = BIO_new_mem_buf((void*)pub_key, strlen(pub_key));
+    RSA *rsa_pub = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
+
+    int rc = RSA_verify(NID_sha256, hash_value,32,sig,256,rsa_pub);
+
+    BIO_free_all(bio);
+    RSA_free(rsa_pub);
+
+
+    //printf("VERIFY RETURN: %d\n", rc);
+    if(rc != 1) printf("Invalid.\n"); else printf("Valid.\n");
+
+    if(rc) return true; else return false;
+
+
+
+    return false;
 }
 
 bool verify_signiture(const char* input, char* sender, char* recipient, char* amount, char* signature) {

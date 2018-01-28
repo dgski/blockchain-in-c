@@ -288,10 +288,31 @@ int insert_trans(const char* input) {
 int insert_post(const char* input) {
 
     printf("Inserting Music!\n");
-    char sender[32] = {0};
-    char music[64] = {0};
-    sscanf(input, "%s %s", sender, music);
-    return 0;
+    char sender[1000] = {0};
+    char music[5] = {0};
+    char signature[513] = {0};
+    sscanf(input, "%s %s %s", sender, music, signature);
+
+    if(strlen(music) > 1) {
+        printf("Music Format Invalid.");
+        return 0;
+    }
+
+    char note = music[0];
+    printf("NOTE TO ADD: '%c'\n", note);
+
+    char message[2000];
+    sprintf(message, "%s %s", sender, music);
+
+    if(!verify_message(message, sender,signature)) {
+        printf("Post invalid!\n");
+        return 0;
+    }
+
+    our_chain->new_posts[our_chain->post_index++] = note;
+
+
+    return 1;
 }
 
 //Regster New Node and send out your chain length
@@ -526,7 +547,7 @@ int verify_foreign_block(const char* input) {
 
                 discard_chain(our_chain);
                 our_chain = this_chain->the_chain;
-                dict_del_elem(foreign_chains,chain_id,0);
+                dict_del_elem(foreign_chains,chain_id,1);
             
                 beaten = 1;
             }

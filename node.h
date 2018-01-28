@@ -1,3 +1,4 @@
+//Message item structure
 typedef struct message_item {
     char toWhom[300];
     char message[30000];

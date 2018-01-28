@@ -18,80 +18,50 @@
 #include "data_containers/linked_list.h"
 #include "hash.h"
 
-
-transaction_queue*  main_queue;
-pthread_t network_thread;
-list* other_nodes2;
-
+//IDs
 RSA* your_keys;
 char* pub_key;
 char* pri_key;
+char asci_pub_key[500] = {0};
+
+transaction_queue*  main_queue;
+
+//Threads
+pthread_t inbound_network_thread;
+pthread_t outbound_network_thread;
+pthread_mutex_t our_mutex;
+int close_threads;
 
 
-void* send_new2(c_transaction* in_trans) {
-    if(in_trans->status == 0) {
+//Lists
+list* other_nodes;
+list* outbound_msg_queue; //holds outbound message structs
+list* inbound_msg_queue; //holds recieved char* messages to execute
 
-        int sock_out = nn_socket (AF_SP, NN_PUSH);
-        assert (sock_out >= 0);
-        int timeout = 50;
-        assert (nn_setsockopt(sock_out, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
-        sleep(1);
+//Sockets
+int sock_in;
+int sock_out;
 
 
-        printf("\nSending: %s\n", in_trans->message);
-        li_node* current = other_nodes2->head;
 
-        for(int i = 0; i < other_nodes2->length; i++) {
+//Message item structure
+typedef struct message_item {
+    char toWhom[300];
+    char message[2000];
+    unsigned int tries;
+} message_item;
 
-            char* ip_address = malloc(current->size) + 1;
-            memcpy(ip_address,current->data,current->size);
-            ip_address[current->size] = '\0';
-
-            int eid = nn_connect (sock_out, ip_address); 
-            assert(eid >= 0);
-            printf("Announcing to: %s, ", ip_address);
-            int bytes = nn_send (sock_out, in_trans->message, strlen(in_trans->message), 0);
-            printf("Bytes sent: %d\n", bytes);
-            current = current->next;
-            nn_shutdown(sock_out,eid);
-        }
-
-        printf("Done sending transaction!\nb-in-c>\n");
-        in_trans->status = 1;
-        //nn_shutdown(sock,0);
-    }
-    return NULL;
-}
-
-void* update_status(c_transaction* in_trans) {
-    if(in_trans->status == 0) {
-
-        //printf("Sending: %s\n", in_trans->message);
-        //Send function goes here
-        in_trans->status = 1;
-    }
-    return NULL;
-}
-
-void* check_network(){
+void setup_message(message_item* in_message) {
     
-    while(true) {
-        //1. Send new transactions to nodes
-        queue_map(main_queue, send_new2);
-        //2. Request blockchain status of transactions
-        
-        //3. Recieve new data
-        //4. Update transactions status
-        queue_map(main_queue, update_status);
-        //5. Wait short amount to prevent spamming
-        sleep(2);
-    }
+    in_message->tries = 0;
+    memset(in_message->toWhom, 0, sizeof(in_message->toWhom));
+    return;
 }
-
 
 void display_help() {
     printf("Help/Command List: 'h'\n");
     printf("Transactions List: 't'\n");
+    printf("Submit a post: 'n sender reciever amount'\n");
     printf("Post New Transaction: 'n sender reciever amount'\n");
     printf("Quit program: 'q'\n");
     return;
@@ -189,76 +159,66 @@ int message_signature(char* output, char* message, RSA* keypair) {
 
     return 1;
 }
-/*
-void post_music(char* input) {
+
+//Send out post to everyone in other_nodes list
+void* send_to_all(list* in_list, li_node* in_item, void* data) {
+    
+    if(in_item == NULL || in_item->size > 300) return NULL;
+
+    //Get ip to send to
+    char data_string[2000];
+    memcpy(data_string,in_item->data,in_item->size);
+    data_string[in_item->size] = 0;
+
+    //Get message to send
+    char* out_msg = (char*)data;
+
+    if(strlen(out_msg) > 2000)
+        return NULL;
+
+   
+    message_item announcement;
+    setup_message(&announcement);
+    strcpy(announcement.toWhom, data_string);
+    strcpy(announcement.message, out_msg);
+
+    pthread_mutex_lock(&our_mutex);
+    li_append(outbound_msg_queue,&announcement,sizeof(announcement));
+    pthread_mutex_unlock(&our_mutex);
+
+    return NULL;
+}
+
+void post(char* input) {
 
     char note[3] = {0};
 
     sscanf(input, "%*s %s", note);
     
-
     char out_msg[2000] = {0};
     char seperator[] = " ";
-    strcpy(out_msg, "M ");
-
-    //Send Hex public key
-    //char* start = pub_key + 31;
-    char asci_pub_key[500] = {0};
-    int i = 31;
-    int x = 0;
-    while (pub_key[i] != '-') {
-        if(pub_key[i] != '\n') asci_pub_key[x++] = pub_key[i];
-        i++;
-    }
-
-    printf("length: %lu\n", strlen(asci_pub_key));
-
-
-    printf("PUBLIC KEY STRIPPED: %s\n", asci_pub_key);
-
-
+    strcpy(out_msg, "P ");
 
     strcat(out_msg, asci_pub_key);
     strcat(out_msg, seperator);
     strcat(out_msg, note);
     char sig[513] = {0};
-    message_signature(sig,out_msg,your_keys);
+    message_signature(sig,out_msg + 2,your_keys);
     strcat(out_msg, seperator);
     strcat(out_msg,sig);
-
-    int sock_out = nn_socket (AF_SP, NN_PUSH);
-    assert (sock_out >= 0);
-    int timeout = 50;
-    assert (nn_setsockopt(sock_out, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
-    sleep(1);
-
-    printf("\nSending: %s\n", out_msg);
-    strli_node* current = other_nodes->head;
-
-    for(int i = 0; i < other_nodes->length; i++) {
-        int eid = nn_connect (sock_out, current->value); 
-        assert(eid >= 0);
-        printf("Announcing to: %s, ", current->value);
-        int bytes = nn_send (sock_out, out_msg, strlen(out_msg), 0);
-        printf("Bytes sent: %d\n", bytes);
-        current = current->next;
-        nn_shutdown(sock_out,eid);
-    }
+    
+    li_foreach(other_nodes,send_to_all, &out_msg);
 
     return;
 
-
-
-}*/
+}
 
 
 void post_transaction(char* input) {
 
-    //char sender[32];
     char recipient[32];
     char amount[32];
 
-    //sscanf(input, "%*s %s %s %s", sender, recipient, amount);
     sscanf(input, "%*s %s %s", recipient, amount);
 
     int the_amount = atoi(amount);
@@ -275,23 +235,6 @@ void post_transaction(char* input) {
     char seperator[] = " ";
     strcpy(out_msg, "T ");
 
-    //Send Hex public key
-    //char* start = pub_key + 31;
-    char asci_pub_key[500] = {0};
-    int i = 31;
-    int x = 0;
-    while (pub_key[i] != '-') {
-        if(pub_key[i] != '\n') asci_pub_key[x++] = pub_key[i];
-        i++;
-    }
-
-    printf("length: %lu\n", strlen(asci_pub_key));
-
-
-    printf("PUBLIC KEY STRIPPED: %s\n", asci_pub_key);
-
-
-
     strcat(out_msg, asci_pub_key);
     strcat(out_msg, seperator);
     
@@ -303,8 +246,12 @@ void post_transaction(char* input) {
     strcat(out_msg, seperator);
     strcat(out_msg,sig);
 
+    li_foreach(other_nodes,send_to_all, &out_msg);
+
+
+    /*
     c_transaction* temp = new_trans(0,asci_pub_key, recipient, atoi(amount), out_msg);
-    add_to_queue(main_queue, temp);
+    add_to_queue(main_queue, temp);*/
 
     return;
 }
@@ -317,17 +264,15 @@ int read_config2() {
     char buffer[120] = {0};
     while (fgets(buffer, sizeof(buffer), config)) {
         if(buffer[strlen(buffer) -1] == '\n') buffer[strlen(buffer) -1] = 0;
-        li_append(other_nodes2, buffer, strlen(buffer) + 1);
+        li_append(other_nodes, buffer, strlen(buffer) + 1);
     }
     fclose(config);
 
     return 0;
 }
 
-
-int create_keys() {
-
 //Create keypair
+int create_keys() {
     your_keys = RSA_generate_key(2048,3,NULL,NULL);
 
     //Create structures to seperate keys
@@ -354,8 +299,63 @@ int create_keys() {
     pri_key[pri_len] = '\0';
     pub_key[pub_len] = '\0';
 
+    int i = 31;
+    int x = 0;
+    while (pub_key[i] != '-') {
+        if(pub_key[i] != '\n') asci_pub_key[x++] = pub_key[i];
+        i++;
+    }
+
+    printf("length: %lu\n", strlen(asci_pub_key));
+
+
+    printf("PUBLIC KEY STRIPPED: %s\n", asci_pub_key);
+
     return 1;
 
+}
+
+
+//Done to each message in 'outbound_msg_queue'. input is of type message_item struct
+void* process_outbound(list* in_list, li_node* input, void* data) {
+
+    if(input == NULL) return NULL;
+
+    sock_out = nn_socket(AF_SP, NN_PUSH);
+    assert (sock_out >= 0);
+    int timeout = 100;
+    assert (nn_setsockopt(sock_out, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
+
+    message_item* our_message = (message_item*)input->data;
+
+    printf("Sending to: %s, ",our_message->toWhom);
+    if(nn_connect (sock_out, our_message->toWhom) < 0){
+        printf("Connection Error.\n");
+        nn_close(sock_out);
+    }
+    int bytes = nn_send (sock_out, our_message->message, strlen(our_message->message), 0);
+    printf("Bytes sent: %d\n", bytes);
+    usleep(100000);
+    nn_close(sock_out);
+
+    if(bytes > 0 || our_message->tries == 0) li_delete_node(in_list, input);
+    else our_message->tries++;
+
+    return NULL;
+}
+
+
+//Outbound thread function - tried to send everything in outbound message queue
+void* out_server() {
+    while(true) {
+        pthread_mutex_lock(&our_mutex);
+        li_foreach(outbound_msg_queue, process_outbound, NULL);
+        if(close_threads)
+            return NULL;
+        pthread_mutex_unlock(&our_mutex);
+
+        sleep(1);
+    }
 }
 
 
@@ -366,7 +366,10 @@ int main(void) {
     printf("Blockchain in C: Client v0.1 by DG\n'h' for help/commandlist\n");
     char buffer[120] = {0};
     main_queue = new_queue();
-    other_nodes2 = list_create();
+    other_nodes = list_create();
+    outbound_msg_queue = list_create();
+    inbound_msg_queue = list_create();
+
     //read_config();
     read_config2();
 
@@ -378,8 +381,10 @@ int main(void) {
     strcpy(buffer2, pub_key);
 
 
-    //Network thread
-    pthread_create(&network_thread, NULL, check_network, NULL);
+    //Threads
+    pthread_mutex_t our_mutex = PTHREAD_MUTEX_INITIALIZER;
+    pthread_create(&outbound_network_thread, NULL, out_server, NULL);
+    close_threads = 0;
 
     //Wait for command
     while(true) {
@@ -395,11 +400,10 @@ int main(void) {
 
         else if( !strcmp("t", buffer) )
             queue_print(main_queue);
-
         else if(buffer[0] == 'n')
             post_transaction(buffer);
         else if(buffer[0] == 'p')
-            ; //post_music(buffer);
+            post(buffer);
         else if( !strcmp("", buffer))
             ;
         else

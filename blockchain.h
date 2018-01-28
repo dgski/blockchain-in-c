@@ -65,6 +65,7 @@ typedef struct blockchain {
 
     long last_proof_of_work;
     int trans_index;
+    int post_index;
     unsigned int length;
     unsigned int total_currency;
 
@@ -72,12 +73,14 @@ typedef struct blockchain {
 
 } blockchain;
 
+//Alternate Chain structure
 typedef struct alt_chain {
     blockchain* the_chain;
     int expected_index;
     int expected_length;
     unsigned int last_time;
 } alt_chain;
+
 
 //Chain functions
 blockchain* new_chain();
@@ -118,6 +121,7 @@ int create_keys(RSA** your_keys, char** pri_key, char** pub_key);
 int destroy_keys(RSA** your_keys, char** pri_key, char** pub_key);
 int message_signature(char* output, char* message, RSA* keypair, char* pub_key);
 bool verify_signiture(const char* input, char* sender, char* recipient, char* amount, char* signature);
+bool verify_message(const char* input, char* sender, char* signature);
 int hash_transactions(char* output, transaction* trans_array, unsigned int trans_array_length);
 
 

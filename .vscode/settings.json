@@ -28,6 +28,9 @@
         "pem.h": "c",
         "rsa.h": "c",
         "__bit_reference": "c",
-        "iosfwd": "c"
+        "iosfwd": "c",
+        "linked_list.h": "c",
+        "__functional_03": "c",
+        "functional": "c"
     }
 }
