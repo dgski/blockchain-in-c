@@ -36,7 +36,7 @@ typedef struct transaction {
 
 typedef struct post {
     char poster[PUBLIC_ADDRESS_SIZE];
-    char note;
+    char data;
     char signature[550];
 } post;
 
@@ -46,6 +46,7 @@ typedef struct block {
     unsigned int time;
     transaction trans_list[TRANS_LIST_SIZE];
     post posts[BLOCK_DATA_SIZE];
+    unsigned int posts_list_length;
     unsigned int trans_list_length;
     long proof;
     char previous_hash[HASH_HEX_SIZE];
@@ -92,9 +93,10 @@ typedef struct alt_chain {
 blockchain* new_chain();
 int discard_chain(blockchain* in_chain);
 void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, int in_amount,char* in_signature);
+void new_post(blockchain* in_chain, char* in_sender, char in_data, char* in_signature);
 blink* append_current_block(blockchain* in_chain, long in_proof);
 blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int in_time, transaction* trans_list,
-post* posts, unsigned int trans_list_length, long proof);
+ post* posts, unsigned int trans_list_length, unsigned int posts_list_length, long proof);
 
 //Block functions
 void print_block(blink* in_block, char separator);
@@ -102,6 +104,10 @@ char* string_block(char* output, block* in_block);
 char* hash_block(char* input, block* in_block);
 int extract_transactions(blockchain* in_chain,transaction* trans_array, const char* in_trans);
 int extract_transactions_raw(transaction* trans_array, char* in_trans);
+
+int extract_posts_raw(post* post_array, char* input_posts_string);
+int validate_posts(blockchain* in_chain, post* new_post_array, int nr_of_posts);
+
 
 //Transaction functions
 char* string_trans_nosig(char* output, char* sender, char* receiver, int amount);
@@ -128,7 +134,8 @@ int destroy_keys(RSA** your_keys, char** pri_key, char** pub_key);
 int message_signature(char* output, char* message, RSA* keypair, char* pub_key);
 bool verify_signiture(const char* input, char* sender, char* recipient, char* amount, char* signature);
 bool verify_message(const char* input, char* sender, char* signature);
-int hash_transactions(char* output, transaction* trans_array, unsigned int trans_array_length);
+int hash_transactions(char* output, transaction* trans_array, unsigned int trans_array_length, post* post_array, unsigned int post_array_length);
+
 
 
 

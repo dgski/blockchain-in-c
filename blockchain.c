@@ -22,8 +22,10 @@ blockchain* new_chain() {
     memset(in_chain->head->data.posts,0, sizeof(in_chain->head->data.posts));
 
     for(int i = 0; i < BLOCK_DATA_SIZE; i++) {
-        in_chain->head->data.posts[i].note = '0';
+        in_chain->head->data.posts[i].data = '0';
     }
+    in_chain->head->data.posts_list_length = 0;
+
 
 
     in_chain->last_proof_of_work = 100;
@@ -32,7 +34,9 @@ blockchain* new_chain() {
     memset(in_chain->new_posts, 0, sizeof(in_chain->new_posts));
 
     for(int i = 0; i < BLOCK_DATA_SIZE; i++) {
-        in_chain->new_posts[i].note = '0';
+        in_chain->new_posts[i].data = '0';
+        in_chain->new_posts[i].poster[0] = '0';
+        in_chain->new_posts[i].signature[0] = '0';
     }
 
     hash_block(in_chain->last_hash, &in_chain->head->data);
@@ -70,11 +74,11 @@ int discard_chain(blockchain* in_chain) {
     return 1;
 }
 
-int hash_transactions(char* output, transaction* trans_array, unsigned int trans_array_length) {
+int hash_transactions(char* output, transaction* trans_array, unsigned int trans_array_length, post* post_array, unsigned int post_array_length) {
 
-    if(output == NULL || trans_array == NULL) return 0;
+    if(output == NULL || trans_array == NULL || post_array == NULL) return 0;
 
-    char all_transactions[BLOCK_STR_SIZE] ={0};
+    char all_transactions[BLOCK_STR_SIZE + 3000] ={0};
 
     for(int i = 0; i < trans_array_length; i++) {
 
@@ -83,8 +87,15 @@ int hash_transactions(char* output, transaction* trans_array, unsigned int trans
         trans_array[i].sender, trans_array[i].recipient, trans_array[i].amount, trans_array[i].signature
         );
         strcat(all_transactions,this_transaction);
-        if(i + 1 != trans_array_length)
-            strcat(all_transactions, ".");
+    }
+
+    for(int i = 0; i < post_array_length; i++) {
+
+        char this_post[BLOCK_BUFFER_SIZE];
+        sprintf(this_post,"%s %c %s",
+        post_array[i].poster, post_array[i].data, post_array[i].signature
+        );
+        strcat(all_transactions,this_post);
     }
 
     unsigned char hashvalue[HASH_SIZE];
@@ -108,6 +119,23 @@ int hash_transactions(char* output, transaction* trans_array, unsigned int trans
 
 }
 
+
+void new_post(blockchain* in_chain, char* in_sender, char in_data, char* in_signature) {
+
+    //Posts full
+    if(in_chain->post_index > 19)
+        return;
+
+    int index = in_chain->post_index++;
+    strcpy(in_chain->new_posts[index].poster, in_sender);
+    in_chain->new_posts[index].data = in_data;
+    strcpy(in_chain->new_posts[index].signature, in_signature);
+
+    //TODO: UPDATE QUICK LEDGER
+
+    hash_transactions(in_chain->trans_hash, in_chain->trans_list,in_chain->trans_index,in_chain->new_posts, in_chain->post_index);
+
+}
 
 //Add transaction to transaction_list
 void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, int in_amount, char* in_signature) {
@@ -150,11 +178,12 @@ void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, 
     recipient_future_balance += in_amount;
     dict_insert(in_chain->quickledger, in_recipient, &recipient_future_balance, sizeof(recipient_future_balance));
     
-    hash_transactions(in_chain->trans_hash, in_chain->trans_list,in_chain->trans_index);
-
+    hash_transactions(in_chain->trans_hash, in_chain->trans_list,in_chain->trans_index,in_chain->new_posts, in_chain->post_index);
 
 
 }
+
+
 
 //Create and blink_append new block
 blink* append_current_block(blockchain* in_chain, long in_proof) {
@@ -167,7 +196,8 @@ blink* append_current_block(blockchain* in_chain, long in_proof) {
     the_block->data.time = time(NULL);
     memcpy(the_block->data.trans_list,in_chain->trans_list, sizeof(in_chain->trans_list));
     memcpy(the_block->data.posts, in_chain->new_posts, sizeof(the_block->data.posts));
-    the_block->data.trans_list_length= in_chain->trans_index;
+    the_block->data.trans_list_length = in_chain->trans_index;
+    the_block->data.posts_list_length = in_chain->post_index;
     the_block->data.proof = in_proof;
     memcpy(the_block->data.previous_hash,in_chain->last_hash, HASH_HEX_SIZE);
 
@@ -177,8 +207,10 @@ blink* append_current_block(blockchain* in_chain, long in_proof) {
 
     //Reset blockchain intake
     memset(in_chain->trans_list,0, sizeof(in_chain->trans_list));
+    memset(in_chain->new_posts,0, sizeof(in_chain->new_posts));
     in_chain->last_proof_of_work = in_proof;
     in_chain->trans_index = 0;
+    in_chain->post_index = 0;
 
     if(in_chain->total_currency < CURRENCY_CAP)
         in_chain->total_currency += CURRENCY_SPEED;
@@ -192,7 +224,7 @@ blink* append_current_block(blockchain* in_chain, long in_proof) {
 }
 
 blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int in_time, transaction* trans_list,
- post* posts, unsigned int trans_list_length, long proof) {
+ post* posts, unsigned int trans_list_length, unsigned int posts_list_length, long proof) {
 
      //Create block
     blink* the_block = blink_append(in_chain->head);
@@ -201,8 +233,9 @@ blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int i
     the_block->data.index = index;
     the_block->data.time = in_time;
     memcpy(the_block->data.trans_list,trans_list,sizeof(the_block->data.trans_list));
-    memcpy(the_block->data.posts, in_chain->new_posts, sizeof(the_block->data.posts));
+    memcpy(the_block->data.posts, posts, sizeof(the_block->data.posts));
     the_block->data.trans_list_length= trans_list_length;
+    the_block->data.posts_list_length = posts_list_length;
     the_block->data.proof = proof;
     memcpy(the_block->data.previous_hash,in_chain->last_hash, HASH_HEX_SIZE);
 
@@ -212,8 +245,10 @@ blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int i
 
     //Reset blockchain intake
     memset(in_chain->trans_list,0, sizeof(in_chain->trans_list));
+    memset(in_chain->new_posts, 0,sizeof(in_chain->new_posts));
     in_chain->last_proof_of_work = proof;
     in_chain->trans_index = 0;
+    in_chain->post_index = 0;
     ++(in_chain->length);
 
     //Register as latest block
@@ -236,8 +271,8 @@ void print_block(blink* in_block, char separator)
     printf("BLOCK # %d\n",in_block->data.index);
     printf("TIME: %d\n",in_block->data.time);
     printf("POSTS: ");
-    for(int i = 0; i < BLOCK_DATA_SIZE; i++)
-        printf("%c",in_block->data.posts[i].note);
+    for(int i = 0; i < in_block->data.posts_list_length; i++)
+        printf("%c",in_block->data.posts[i].data);
     printf("\n");
     printf("TRANSACTIONS:\n");
 
@@ -267,13 +302,22 @@ char* string_block(char* output, block* in_block) {
     //Add index and time
     sprintf(block_string,"%010i.%010i.", in_block->index, in_block->time);
 
+    if(in_block->posts_list_length == 0) {
+        strcat(block_string, "0");
+    }
+    else {
     //Add posts
-    for(int i = 0; i < BLOCK_DATA_SIZE; i++) {
-        char temp [2] = {0};
-        sprintf(temp,"%c",in_block->posts[i].note);
-        strcat(block_string, temp);
+    for(int i = 0; i < in_block->posts_list_length; i++) {
+        sprintf(buffer,"%s:%c:%s",in_block->posts[i].poster, in_block->posts[i].data,in_block->posts[i].signature); 
+        if(i + 1 != in_block->posts_list_length) strcat(buffer,"-");
+        strcat(block_string, buffer);
+    }
     }
     strcat(block_string, ".");
+
+    //Add posts list length
+    sprintf(buffer,"%01d.", in_block->posts_list_length);
+    strcat(block_string, buffer);
 
     //Add transactions
     for(int i = 0; i < in_block->trans_list_length; i++) {
@@ -326,12 +370,66 @@ char* string_trans_nosig(char* output, char* sender, char* receiver, int amount)
     return output;
 }
 
+char* string_post_nosig(char* output, char* sender, char data) {
+
+
+    sprintf(output,"%s %c",sender, data);
+
+    return output;
+}
+
+
+int extract_posts_raw(post* post_array, char* input_posts_string) {
+
+    if(post_array == NULL || input_posts_string == NULL) return 0;
+    if(input_posts_string[0] == '0') return 0;
+
+    printf("THE POSTS TO PROCESS: %s\n", input_posts_string);
+
+    char* post_strings[BLOCK_DATA_SIZE] = {0};
+    char in_posts[BLOCK_STR_SIZE] = {0};
+    strcpy(in_posts, input_posts_string);
+    char* pointer = strtok(in_posts,"-");
+    post_strings[0] = pointer;
+    int i = 1;
+    int counter = 1;
+    while(pointer != NULL) {
+        pointer = strtok(NULL,"-");
+        post_strings[i++] = pointer;
+        counter++;
+    }
+
+    char* poster;
+    char* data;
+    char* signature;
+
+    for(int i = 0; post_strings[i] != 0; i++) {
+
+        poster = strtok(post_strings[i],":");
+        //printf("sender: %s\n", sender);
+        data = strtok(NULL, ":");
+        //printf("amount: %s\n", amount);
+        signature = strtok(NULL, ":");
+        //printf("signature: %s\n", signature);
+
+       
+        strcpy(post_array[i].poster, poster);
+        post_array[i].data = *data;
+        strcpy(post_array[i].signature, signature);
+
+    }
+
+    return counter;
+}
+
+
+
 int extract_transactions_raw(transaction* trans_array, char* input_trans_string) {
 
 
     char* trans_strings[20] = {0};
 
-    char in_trans[5000] = {0};
+    char in_trans[30000] = {0};
     strcpy(in_trans, input_trans_string);
 
     char* pointer = strtok(in_trans,"-");
@@ -426,6 +524,25 @@ int validate_and_insert_trans(blockchain* in_chain, transaction* trans_array) {
 
     return 1;
 }*/
+
+int validate_posts(blockchain* in_chain, post* new_post_array, int nr_of_posts) {
+
+    if(nr_of_posts == 0 || in_chain == NULL || new_post_array == NULL) return 1;
+
+    for(int i = 0; i < nr_of_posts; i ++) {
+        printf("VERIFYING POST:\n");
+        char output[1500] = {0};
+        string_post_nosig(output, new_post_array[i].poster, new_post_array[i].data);
+
+        if(!verify_message(output,new_post_array[i].poster, new_post_array[i].signature))
+            return 0;
+    }
+
+    return 1;
+    
+}
+
+
 
 
 int extract_transactions(blockchain* in_chain,transaction* trans_array, const char* in_trans) {

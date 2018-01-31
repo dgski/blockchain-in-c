@@ -14,7 +14,7 @@
 #include "node.h"
 
 #define DEBUG 1
-#define MESSAGE_LENGTH 30000
+#define MESSAGE_LENGTH 100000
 #define SHORT_MESSAGE_LENGTH 300
 
 /////////////////////////////////////////////////////
@@ -260,13 +260,13 @@ int insert_trans(const char* input) {
     char* amount = strtok(NULL, " ");
     char* signature = strtok(NULL, " ");
     
-    
+    /* TEMP DISABLED FOR TESTING
     //Check if user has enough in quick ledger
     void* sender_balance = dict_access(our_chain->quickledger, sender);
     if(sender_balance == NULL || (int)sender_balance < atoi(amount)) {
         printf("Insufficient Funds.\n");
         return 0;
-    }
+    }*/
 
     //Check if transaction is signed
     if(!verify_signiture(buffer,sender, recipient, amount, signature))
@@ -298,8 +298,8 @@ int insert_post(const char* input) {
         return 0;
     }
 
-    char note = music[0];
-    printf("NOTE TO ADD: '%c'\n", note);
+    char data = music[0];
+    printf("NOTE TO ADD: '%c'\n", data);
 
     char message[2000];
     sprintf(message, "%s %s", sender, music);
@@ -309,8 +309,7 @@ int insert_post(const char* input) {
         return 0;
     }
 
-    our_chain->new_posts[our_chain->post_index++].note = note;
-
+    new_post(our_chain,sender,music[0],signature);
 
     return 1;
 }
@@ -418,7 +417,7 @@ int send_our_chain(const char* address) {
         char the_length[12];
         sprintf(the_length,"%010d.", our_chain->length);
         strcat(message, the_length); //Add chain length
-        char block[5000] = {0};
+        char block[BLOCK_STR_SIZE] = {0};
         string_block(block,&temp->data);
         strcat(message, block); //Add block
 
@@ -458,6 +457,7 @@ int verify_foreign_block(const char* input) {
     char* index = strtok(NULL, ".");
     char* time_gen = strtok(NULL, ".");
     char* posts = strtok(NULL,".");
+    char* posts_size = strtok(NULL, ".");
     char* transactions = strtok(NULL, ".");
     char* trans_size = strtok(NULL, ".");
     char* proof = strtok(NULL, ".");
@@ -507,8 +507,14 @@ int verify_foreign_block(const char* input) {
 
     char trans_hash[HASH_HEX_SIZE];
     transaction new_trans_array[20] = {0};
+
     extract_transactions_raw(new_trans_array,transactions);
-    hash_transactions(trans_hash,new_trans_array, atoi(trans_size));
+
+    post new_post_array[BLOCK_DATA_SIZE] = {0};
+    int nr_of_posts = extract_posts_raw(new_post_array,posts);
+
+    hash_transactions(trans_hash,new_trans_array, atoi(trans_size), new_post_array, atoi(posts_size));
+
 
 
     //Chain is valid
@@ -516,11 +522,11 @@ int verify_foreign_block(const char* input) {
 
         this_chain->last_time = time(NULL);
 
-        post posts[] = {};
         transaction rec_trans[20] = {0};
         int all_valid_trans = extract_transactions(this_chain->the_chain, rec_trans, transactions);
+        int all_valid_posts = validate_posts(this_chain->the_chain,new_post_array,atoi(posts_size));
 
-        if(!all_valid_trans) {
+        if(!all_valid_trans && !all_valid_posts) {
             printf("Invalid.\n");
             return 0;
         }
@@ -529,7 +535,7 @@ int verify_foreign_block(const char* input) {
 
         
         //Add block
-        blink* a_block = append_new_block(this_chain->the_chain, atoi(index), atoi(time_gen),rec_trans, posts, atoi(trans_size), the_proof);
+        blink* a_block = append_new_block(this_chain->the_chain, atoi(index), atoi(time_gen),rec_trans, new_post_array, atoi(trans_size), atoi(posts_size), the_proof);
 
             printf("\nFOREIGN DICT SIZE %d:\n", foreign_chains->size);
             dict_foreach(foreign_chains, print_keys,NULL);
