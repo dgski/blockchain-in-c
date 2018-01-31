@@ -66,7 +66,7 @@ int print_balance(bt_node* current_node) {
     if(current_node == NULL || current_node->data == NULL) return 0;
 
     int* balance = current_node->data;
-    printf("%.10s... : %d\n", current_node->key, *balance);
+    printf("%.10s... : %d\n", (current_node->key)+ 12, *balance);
     return 1;
 }
 
@@ -119,7 +119,7 @@ int destroy_chains_in_dict(bt_node* current_node) {
 int mine() {
     sleep(3);
     printf("\nMining started.\n");
-    long result;
+    long result = 0;
     
     while(true) {
 
@@ -129,6 +129,8 @@ int mine() {
         }
 
         //Generate creation transaction with signature
+        if(beaten == 0) {
+        pthread_mutex_lock(&our_mutex);
         char sig[513] = {0};
         char output[2500] = {0};
         if(our_chain->total_currency < CURRENCY_CAP) {
@@ -141,6 +143,9 @@ int mine() {
             message_signature(sig,output, our_keys,pub_key);
             new_transaction(our_chain,stripped_pub_key,stripped_pub_key, 0, sig);
         }
+        pthread_mutex_unlock(&our_mutex);
+        }
+
 
         //Actual mining
         unsigned int time_1 = time(NULL);
@@ -260,13 +265,12 @@ int insert_trans(const char* input) {
     char* amount = strtok(NULL, " ");
     char* signature = strtok(NULL, " ");
     
-    /* TEMP DISABLED FOR TESTING
     //Check if user has enough in quick ledger
     void* sender_balance = dict_access(our_chain->quickledger, sender);
     if(sender_balance == NULL || (int)sender_balance < atoi(amount)) {
         printf("Insufficient Funds.\n");
         return 0;
-    }*/
+    }
 
     //Check if transaction is signed
     if(!verify_signiture(buffer,sender, recipient, amount, signature))
@@ -295,6 +299,13 @@ int insert_post(const char* input) {
 
     if(strlen(music) > 1) {
         printf("Music Format Invalid.");
+        return 0;
+    }
+
+    //Check if user has enough in quick ledger
+    void* sender_balance = dict_access(our_chain->quickledger, sender);
+    if(sender_balance == NULL || (int)sender_balance < 1) {
+        printf("Insufficient Funds For Post.\n");
         return 0;
     }
 
@@ -727,6 +738,43 @@ int read_config() {
     return 1;
 }
 
+int read_keys() {
+
+    //Read private key
+    FILE* pri_key_file = fopen("pri_key.txt", "r");
+    if(pri_key_file == NULL) return 0;
+    char buffer[300] = {0};
+    while (fgets(buffer, sizeof(buffer), pri_key_file)) {
+        if(buffer[strlen(buffer) -1] == '\n') buffer[strlen(buffer) -1] = 0;
+        strcat(pri_key,buffer);
+    }
+    fclose(pri_key_file);
+
+    //Read public
+    FILE* pub_key_file = fopen("pub_key.txt", "r");
+    if(pub_key_file == NULL) return 0;
+    char buffer[300] = {0};
+    while (fgets(buffer, sizeof(buffer), pri_key_file)) {
+        if(buffer[strlen(buffer) -1] == '\n') buffer[strlen(buffer) -1] = 0;
+        strcat(pri_key,buffer);
+    }
+    fclose(pub_key_file);
+
+
+
+    //Strip public
+
+
+}
+
+int write_keys() {
+
+
+
+
+
+}
+
 
 void* li_write_string_file(list* in_list, li_node* in_node, void* data) {
 
@@ -811,11 +859,19 @@ int main(int argc, char* argv[]) {
     our_chain = new_chain();
     beaten = 0;
 
-    //Generate our pri/pub address keys
-    create_keys(&our_keys,&pri_key,&pub_key);
+    //Try to read keys first
+    int keys_good = read_keys();
+    //Otherwise Generate our pri/pub address keys
+    if(keys_good) {
+        printf("Read Keypair:\n\n");
+    }
+    else {
+        create_keys(&our_keys,&pri_key,&pub_key);
+        printf("Created Keypair:\n\n");
+    } 
     strip_pub_key(stripped_pub_key, pub_key);
-    printf("Created Keypair:\n\n");
     printf("%s%s\n\n", pri_key, pub_key);
+
 
     //Create foreign chain dict
     foreign_chains = dict_create();

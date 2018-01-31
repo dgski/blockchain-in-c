@@ -132,6 +132,16 @@ void new_post(blockchain* in_chain, char* in_sender, char in_data, char* in_sign
     strcpy(in_chain->new_posts[index].signature, in_signature);
 
     //TODO: UPDATE QUICK LEDGER
+    void* sender_funds = dict_access(in_chain->quickledger, in_sender);
+    int sender_future_balance = 0;
+    if(sender_funds == NULL) {
+        printf("Cannot Insert Post: Quickledger entry does not exist.\n");
+        return;
+    }
+    else {
+        sender_future_balance = *((int*)sender_funds) - 1;
+    } 
+    dict_insert(in_chain->quickledger, in_sender, &sender_future_balance, sizeof(sender_funds));
 
     hash_transactions(in_chain->trans_hash, in_chain->trans_list,in_chain->trans_index,in_chain->new_posts, in_chain->post_index);
 
@@ -604,19 +614,20 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, const ch
         }
 
         //Addresses are the same, Currency cap already met, and they are trying to give themselves more
-        if(!strcmp(sender, reciever) && in_chain->total_currency >= CURRENCY_CAP && atoi(amount) != 0) {
-            //return 0;
-            return 1; //temp
+        if(!strcmp(sender, reciever) && in_chain->total_currency == CURRENCY_CAP && atoi(amount) != 0) {
+            return 0;
+            //return 1; //temp
         }
 
         //Addresses are the same, Trying to givethemselves more than 2
         if(!strcmp(sender, reciever) && (in_chain->total_currency < CURRENCY_CAP) && (atoi(amount) != CURRENCY_SPEED) ) {
-            //return 0;
-            return 1; //temp
+            return 0;
+            //return 1; //temp
         }
 
-
-        in_chain->total_currency += CURRENCY_SPEED;
+        //Behold! The creation of NOINCOINS!
+        if(in_chain->total_currency < CURRENCY_CAP)
+            in_chain->total_currency += CURRENCY_SPEED;
         
         
 
