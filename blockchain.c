@@ -21,10 +21,19 @@ blockchain* new_chain() {
     memset(in_chain->head->data.trans_list,0, sizeof(in_chain->head->data.trans_list));
     memset(in_chain->head->data.posts,0, sizeof(in_chain->head->data.posts));
 
+    for(int i = 0; i < BLOCK_DATA_SIZE; i++) {
+        in_chain->head->data.posts[i].note = '0';
+    }
+
 
     in_chain->last_proof_of_work = 100;
     memset(in_chain->trans_list, 0, sizeof(in_chain->trans_list));
+
     memset(in_chain->new_posts, 0, sizeof(in_chain->new_posts));
+
+    for(int i = 0; i < BLOCK_DATA_SIZE; i++) {
+        in_chain->new_posts[i].note = '0';
+    }
 
     hash_block(in_chain->last_hash, &in_chain->head->data);
     
@@ -183,7 +192,7 @@ blink* append_current_block(blockchain* in_chain, long in_proof) {
 }
 
 blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int in_time, transaction* trans_list,
- char* posts, unsigned int trans_list_length, long proof) {
+ post* posts, unsigned int trans_list_length, long proof) {
 
      //Create block
     blink* the_block = blink_append(in_chain->head);
@@ -226,7 +235,10 @@ void print_block(blink* in_block, char separator)
     
     printf("BLOCK # %d\n",in_block->data.index);
     printf("TIME: %d\n",in_block->data.time);
-    printf("POSTS: %s\n",in_block->data.posts);
+    printf("POSTS: ");
+    for(int i = 0; i < BLOCK_DATA_SIZE; i++)
+        printf("%c",in_block->data.posts[i].note);
+    printf("\n");
     printf("TRANSACTIONS:\n");
 
     for(int i = 0; i < in_block->data.trans_list_length; i++)
@@ -256,7 +268,12 @@ char* string_block(char* output, block* in_block) {
     sprintf(block_string,"%010i.%010i.", in_block->index, in_block->time);
 
     //Add posts
-    if(strlen(in_block->posts) > 0) strcat(block_string, in_block->posts);
+    for(int i = 0; i < BLOCK_DATA_SIZE; i++) {
+        char temp [2] = {0};
+        sprintf(temp,"%c",in_block->posts[i].note);
+        strcat(block_string, temp);
+    }
+    strcat(block_string, ".");
 
     //Add transactions
     for(int i = 0; i < in_block->trans_list_length; i++) {
@@ -537,7 +554,7 @@ bool valid_proof(char* last_hash, char* trans_hash,  long proof) {
     hash256(hash_value,guess);
 
     if(1)
-        return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0'/* && (hash_value[3] > 60 && hash_value[3] < 127)*/);
+        return (hash_value[0] == '0' && hash_value[1] == '0' /*&& hash_value[2] == '0' && (hash_value[3] > 60 && hash_value[3] < 127)*/);
     else
         return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' && (hash_value[3] > 60 && hash_value[3] < 127));
 

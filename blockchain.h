@@ -34,12 +34,18 @@ typedef struct transaction {
     char signature[550];
 } transaction;
 
+typedef struct post {
+    char poster[PUBLIC_ADDRESS_SIZE];
+    char note;
+    char signature[550];
+} post;
+
 //Block Structure
 typedef struct block {
     unsigned int index;
     unsigned int time;
     transaction trans_list[TRANS_LIST_SIZE];
-    char posts[BLOCK_DATA_SIZE];
+    post posts[BLOCK_DATA_SIZE];
     unsigned int trans_list_length;
     long proof;
     char previous_hash[HASH_HEX_SIZE];
@@ -59,7 +65,7 @@ typedef struct blockchain {
 
     transaction trans_list[TRANS_LIST_SIZE];
 
-    char new_posts[BLOCK_DATA_SIZE];
+    post new_posts[BLOCK_DATA_SIZE];
     
     char trans_hash[HASH_HEX_SIZE];
 
@@ -88,7 +94,7 @@ int discard_chain(blockchain* in_chain);
 void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, int in_amount,char* in_signature);
 blink* append_current_block(blockchain* in_chain, long in_proof);
 blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int in_time, transaction* trans_list,
-char* posts, unsigned int trans_list_length, long proof);
+post* posts, unsigned int trans_list_length, long proof);
 
 //Block functions
 void print_block(blink* in_block, char separator);

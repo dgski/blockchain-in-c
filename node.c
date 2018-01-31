@@ -13,7 +13,7 @@
 #include "data_containers/linked_list.h"
 #include "node.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #define MESSAGE_LENGTH 30000
 #define SHORT_MESSAGE_LENGTH 300
 
@@ -309,7 +309,7 @@ int insert_post(const char* input) {
         return 0;
     }
 
-    our_chain->new_posts[our_chain->post_index++] = note;
+    our_chain->new_posts[our_chain->post_index++].note = note;
 
 
     return 1;
@@ -457,6 +457,7 @@ int verify_foreign_block(const char* input) {
     char* exp_length = strtok(NULL, ".");
     char* index = strtok(NULL, ".");
     char* time_gen = strtok(NULL, ".");
+    char* posts = strtok(NULL,".");
     char* transactions = strtok(NULL, ".");
     char* trans_size = strtok(NULL, ".");
     char* proof = strtok(NULL, ".");
@@ -515,7 +516,7 @@ int verify_foreign_block(const char* input) {
 
         this_chain->last_time = time(NULL);
 
-        char posts[] = {};
+        post posts[] = {};
         transaction rec_trans[20] = {0};
         int all_valid_trans = extract_transactions(this_chain->the_chain, rec_trans, transactions);
 
