@@ -764,6 +764,9 @@ int destroy_keys(RSA** your_keys, char** pri_key, char** pub_key) {
 
     free(*pri_key);
     free(*pub_key);
+
+    if(*your_keys ==  NULL) return 1;
+    
     RSA_free(*your_keys);
 
     return 1;
