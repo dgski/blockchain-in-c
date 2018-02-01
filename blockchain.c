@@ -720,11 +720,57 @@ long proof_of_work(int* beaten, char* last_hash, char* trans_hash) {
     return proof;
 }
 
+int read_keys(RSA** our_keys, char* pri_filename, char* pub_filename) {
+
+    *our_keys = RSA_new();
+
+    //Read private key
+    FILE* pri_key_file = fopen(pri_filename, "r");
+    if(pri_key_file == NULL) return 0;
+
+    RSA* pointer = PEM_read_RSAPrivateKey(pri_key_file, our_keys, NULL, NULL);
+    fclose(pri_key_file);
+
+    printf("\n");
+    
+    //Read public key
+    FILE* pub_key_file = fopen(pri_filename, "r");
+    if(pub_key_file == NULL) return 0;
+
+    PEM_read_RSAPublicKey(pub_key_file, our_keys, NULL, NULL);
+
+    fclose(pub_key_file);
+
+    return 1;
+}
+
+int write_keys(RSA** our_keys, char* pri_filename, char* pub_filename) {
+    
+
+    //Write private key
+    FILE* pri_key_file = fopen(pri_filename, "w");
+    if(pri_key_file == NULL) return 0;
+    PEM_write_RSAPrivateKey(pri_key_file, *our_keys, NULL, NULL, 0, NULL, NULL);
+    fclose(pri_key_file);
+    
+    
+    //Write public key
+    FILE* pub_key_file = fopen(pub_filename, "w");
+    if(pub_key_file == NULL) return 0;
+    PEM_write_RSAPublicKey(pub_key_file, *our_keys);
+    fclose(pub_key_file);
+
+
+    return 1;
+
+}
+
 //Create keys for private_public pair
 int create_keys(RSA** your_keys, char** pri_key, char** pub_key) {
 
-    //Create keypair
-    *your_keys = RSA_generate_key(2048,65535,NULL,NULL);
+    //Create keypair if not provided
+    if(*your_keys == NULL)
+        *your_keys = RSA_generate_key(2048,65535,NULL,NULL);
 
     //Create structures to seperate keys
     BIO *pri = BIO_new(BIO_s_mem());

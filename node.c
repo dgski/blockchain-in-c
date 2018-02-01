@@ -291,11 +291,12 @@ int insert_trans(const char* input) {
 //Insert [post] [sender post]
 int insert_post(const char* input) {
 
-    printf("Inserting Music!\n");
     char sender[1000] = {0};
     char music[5] = {0};
     char signature[513] = {0};
     sscanf(input, "%s %s %s", sender, music, signature);
+
+    printf("%s, LENGTH OF: %lu\n", music, strlen(music));
 
     if(strlen(music) > 1) {
         printf("Music Format Invalid.");
@@ -739,53 +740,6 @@ int read_config() {
 }
 
 
-int read_keys() {
-
-    our_keys = RSA_new();
-
-    //Read private key
-    FILE* pri_key_file = fopen("pri_key.pem", "r");
-    if(pri_key_file == NULL) return 0;
-
-    RSA* pointer = PEM_read_RSAPrivateKey(pri_key_file, &our_keys, NULL, NULL);
-    fclose(pri_key_file);
-
-    printf("\n");
-    
-    //Read public key
-    FILE* pub_key_file = fopen("pub_key.pem", "r");
-    if(pub_key_file == NULL) return 0;
-
-    PEM_read_RSAPublicKey(pub_key_file, &our_keys, NULL, NULL);
-
-    fclose(pub_key_file);
-
-    return 1;
-}
-
-
-int write_keys() {
-    
-
-    //Write private key
-    FILE* pri_key_file = fopen("pri_key.pem", "w");
-    if(pri_key_file == NULL) return 0;
-    PEM_write_RSAPrivateKey(pri_key_file, our_keys, NULL, NULL, 0, NULL, NULL);
-    fclose(pri_key_file);
-    
-    
-    //Write public key
-    FILE* pub_key_file = fopen("pub_key.pem", "w");
-    if(pub_key_file == NULL) return 0;
-    PEM_write_RSAPublicKey(pub_key_file, our_keys);
-    fclose(pub_key_file);
-
-
-    return 1;
-
-}
-
-
 void* li_write_string_file(list* in_list, li_node* in_node, void* data) {
 
     if(in_node == NULL || in_node->size > 300) return NULL;
@@ -874,8 +828,22 @@ int main(int argc, char* argv[]) {
     OpenSSL_add_all_ciphers();
     ERR_load_crypto_strings();
 
+    //Get our ip address from argument
+    if(argc < 2) strcpy(our_ip, "ipc:///tmp/pipeline_0.ipc");
+    else if(strlen(argv[1]) < 300) strcpy(our_ip, argv[1]);
+    else printf("Provide a valid address with a length less than 300 characters.\n");
+
     //Try to read keys first
-    int keys_good = read_keys();
+    char pri_file[500];
+    sprintf(pri_file, "pri.pem");
+    char pub_file[500];
+    sprintf(pub_file,"pub.pem");
+    int keys_good = read_keys(&our_keys,pri_file, pub_file);
+    if(keys_good == 0){
+        RSA_free(our_keys);
+        our_keys = NULL;
+
+    }
     create_keys(&our_keys,&pri_key,&pub_key);
 
     //Otherwise Generate our pri/pub address keys
@@ -883,12 +851,11 @@ int main(int argc, char* argv[]) {
         printf("Read Keypair:\n\n");
     }
     else {
-        write_keys();
+        write_keys(&our_keys,pri_file,pub_file);
         printf("Created Keypair (Now Saved):\n\n");
     } 
     strip_pub_key(stripped_pub_key, pub_key);
     printf("%s%s\n\n", pri_key, pub_key);
-
 
     //Create foreign chain dict
     foreign_chains = dict_create();
@@ -896,10 +863,6 @@ int main(int argc, char* argv[]) {
     //Create list of other nodes
     other_nodes = list_create();
 
-    //Get our ip address from argument
-    if(argc < 2) strcpy(our_ip, "ipc:///tmp/pipeline_0.ipc");
-    else if(strlen(argv[1]) < 300) strcpy(our_ip, argv[1]);
-    else printf("Provide a valid address with a length less than 300 characters.\n");
 
     //Get our config file from argument
     if(argc < 3) strcpy(config_file, "node.cfg");

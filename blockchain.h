@@ -131,6 +131,8 @@ long proof_of_work(int* beaten, char* last_hash, char* trans_hash);
 //Crypto functions
 int create_keys(RSA** your_keys, char** pri_key, char** pub_key);
 int destroy_keys(RSA** your_keys, char** pri_key, char** pub_key);
+int read_keys(RSA** our_keys, char* pri_filename, char* pub_filename);
+int write_keys(RSA** our_keys, char* pri_filename, char* pub_filename);
 int message_signature(char* output, char* message, RSA* keypair, char* pub_key);
 bool verify_signiture(const char* input, char* sender, char* recipient, char* amount, char* signature);
 bool verify_message(const char* input, char* sender, char* signature);

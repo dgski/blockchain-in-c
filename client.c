@@ -16,10 +16,10 @@
 #include "nanomsg/include/nn.h"
 #include "nanomsg/include/pipeline.h"
 #include "data_containers/linked_list.h"
-#include "hash.h"
+#include "blockchain.h"
 
 //IDs
-RSA* your_keys;
+RSA* our_keys;
 char* pub_key;
 char* pri_key;
 char asci_pub_key[500] = {0};
@@ -96,7 +96,7 @@ bool val_trans_format(char* recipient, char* amount) {
 
     return true;
 }
-
+/*
 //Hash and sign the given message
 int message_signature(char* output, char* message, RSA* keypair) {
 
@@ -159,6 +159,7 @@ int message_signature(char* output, char* message, RSA* keypair) {
 
     return 1;
 }
+*/
 
 //Send out post to everyone in other_nodes list
 void* send_to_all(list* in_list, li_node* in_item, void* data) {
@@ -189,7 +190,7 @@ void* send_to_all(list* in_list, li_node* in_item, void* data) {
     return NULL;
 }
 
-void post(char* input) {
+void post_post(char* input) {
 
     char note[3] = {0};
 
@@ -203,7 +204,7 @@ void post(char* input) {
     strcat(out_msg, seperator);
     strcat(out_msg, note);
     char sig[513] = {0};
-    message_signature(sig,out_msg + 2,your_keys);
+    message_signature(sig,out_msg + 2,our_keys,pub_key);
     strcat(out_msg, seperator);
     strcat(out_msg,sig);
     
@@ -242,7 +243,7 @@ void post_transaction(char* input) {
     strcat(out_msg, seperator);
     strcat(out_msg, amount);
     char sig[513] = {0};
-    message_signature(sig,out_msg + 2,your_keys);
+    message_signature(sig,out_msg + 2,our_keys, pub_key);
     strcat(out_msg, seperator);
     strcat(out_msg,sig);
 
@@ -270,7 +271,7 @@ int read_config2() {
 
     return 0;
 }
-
+/*
 //Create keypair
 int create_keys() {
     your_keys = RSA_generate_key(2048,3,NULL,NULL);
@@ -314,6 +315,7 @@ int create_keys() {
     return 1;
 
 }
+*/
 
 
 //Done to each message in 'outbound_msg_queue'. input is of type message_item struct
@@ -374,8 +376,29 @@ int main(void) {
     read_config2();
 
     //Create Keys
-    create_keys();
-    printf("%s%s", pri_key, pub_key);
+    //Try to read keys first
+    char pri_file[500];
+    sprintf(pri_file, "client_pri.pem");
+    char pub_file[500];
+    sprintf(pub_file,"client_pub.pem");
+    int keys_good = read_keys(&our_keys,pri_file, pub_file);
+    if(keys_good == 0){
+        RSA_free(our_keys);
+        our_keys = NULL;
+
+    }
+    create_keys(&our_keys,&pri_key,&pub_key);
+
+    //Otherwise Generate our pri/pub address keys
+    if(keys_good) {
+        printf("Read Keypair:\n\n");
+    }
+    else {
+        write_keys(&our_keys,pri_file,pub_file);
+        printf("Created Keypair (Now Saved):\n\n");
+    } 
+    strip_pub_key(asci_pub_key, pub_key);
+    printf("%s%s\n\n", pri_key, pub_key);
 
     char buffer2[500];
     strcpy(buffer2, pub_key);
@@ -403,7 +426,7 @@ int main(void) {
         else if(buffer[0] == 'n')
             post_transaction(buffer);
         else if(buffer[0] == 'p')
-            post(buffer);
+            post_post(buffer);
         else if( !strcmp("", buffer))
             ;
         else
