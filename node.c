@@ -743,24 +743,11 @@ int read_keys() {
 
     our_keys = RSA_new();
 
-
     //Read private key
     FILE* pri_key_file = fopen("pri_key.pem", "r");
     if(pri_key_file == NULL) return 0;
 
-    char buf;
-    size_t length = 1;
-    pri_key  = malloc(length);
-    while( (buf = fgetc(pri_key_file)) != EOF ) {
-        pri_key[length - 1] = buf;
-        length += 1;
-        pri_key = realloc(pri_key,length);
-    }
-    pri_key[length -1] = 0;
-
-    PEM_read_RSAPrivateKey(pri_key_file, &our_keys, NULL, NULL);
-
-
+    RSA* pointer = PEM_read_RSAPrivateKey(pri_key_file, &our_keys, NULL, NULL);
     fclose(pri_key_file);
 
     printf("\n");
@@ -769,39 +756,30 @@ int read_keys() {
     FILE* pub_key_file = fopen("pub_key.pem", "r");
     if(pub_key_file == NULL) return 0;
 
-    length = 1;
-    pub_key  = malloc(length);
-    while( (buf = fgetc(pub_key_file)) != EOF ) {
-        pub_key[length - 1] = buf;
-        length += 1;
-        pub_key = realloc(pub_key,length);
-    }
-    pub_key[length -1] = 0;
+    PEM_read_RSAPublicKey(pub_key_file, &our_keys, NULL, NULL);
+
     fclose(pub_key_file);
 
-    
-
-
     return 1;
-
 }
 
 
 int write_keys() {
+    
 
     //Write private key
     FILE* pri_key_file = fopen("pri_key.pem", "w");
     if(pri_key_file == NULL) return 0;
-
-    fwrite(pri_key , 1 , strlen(pri_key) + 1 , pri_key_file);
+    PEM_write_RSAPrivateKey(pri_key_file, our_keys, NULL, NULL, 0, NULL, NULL);
     fclose(pri_key_file);
-
+    
+    
     //Write public key
     FILE* pub_key_file = fopen("pub_key.pem", "w");
     if(pub_key_file == NULL) return 0;
-
-    fwrite(pub_key, 1, strlen(pub_key) + 1, pub_key_file);
+    PEM_write_RSAPublicKey(pub_key_file, our_keys);
     fclose(pub_key_file);
+
 
     return 1;
 
@@ -891,17 +869,22 @@ int main(int argc, char* argv[]) {
     our_chain = new_chain();
     beaten = 0;
 
+    //Initialize Crypto
+    OpenSSL_add_all_algorithms();
+    OpenSSL_add_all_ciphers();
+    ERR_load_crypto_strings();
+
     //Try to read keys first
     int keys_good = read_keys();
+    create_keys(&our_keys,&pri_key,&pub_key);
 
     //Otherwise Generate our pri/pub address keys
     if(keys_good) {
         printf("Read Keypair:\n\n");
     }
     else {
-        create_keys(&our_keys,&pri_key,&pub_key);
         write_keys();
-        printf("Created Keypair:\n\n");
+        printf("Created Keypair (Now Saved):\n\n");
     } 
     strip_pub_key(stripped_pub_key, pub_key);
     printf("%s%s\n\n", pri_key, pub_key);

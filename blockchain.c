@@ -724,7 +724,7 @@ long proof_of_work(int* beaten, char* last_hash, char* trans_hash) {
 int create_keys(RSA** your_keys, char** pri_key, char** pub_key) {
 
     //Create keypair
-    *your_keys = RSA_generate_key(2048,3,NULL,NULL);
+    *your_keys = RSA_generate_key(2048,65535,NULL,NULL);
 
     //Create structures to seperate keys
     BIO *pri = BIO_new(BIO_s_mem());
