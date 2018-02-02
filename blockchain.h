@@ -107,6 +107,8 @@ int extract_transactions_raw(transaction* trans_array, char* in_trans);
 
 int extract_posts_raw(post* post_array, char* input_posts_string);
 int validate_posts(blockchain* in_chain, post* new_post_array, int nr_of_posts);
+int verify_post_format(const char* post);
+
 
 
 //Transaction functions

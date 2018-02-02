@@ -13,7 +13,7 @@
 #include "data_containers/linked_list.h"
 #include "node.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #define MESSAGE_LENGTH 100000
 #define SHORT_MESSAGE_LENGTH 300
 
@@ -23,11 +23,14 @@
 
 //Identification
 char our_ip[300] = {0};
-char config_file[300] = {0};
+char node_list_file[300] = {0};
 RSA* our_keys;
 char* pub_key;
 char stripped_pub_key[500];
 char* pri_key;
+
+char pri_file[300];
+char pub_file[300];
 
 //Blockchains
 blockchain* our_chain;
@@ -288,6 +291,16 @@ int insert_trans(const char* input) {
     return 1;
 }
 
+int verify_post_format(const char* post) {
+    
+    if(post == NULL || strlen(post) > 1) return 0;
+
+    if(post[0] > 64 && post[0] < 72)
+        return 1;
+    
+    return 0;
+}
+
 //Insert [post] [sender post]
 int insert_post(const char* input) {
 
@@ -298,7 +311,7 @@ int insert_post(const char* input) {
 
     printf("%s, LENGTH OF: %lu\n", music, strlen(music));
 
-    if(strlen(music) > 1) {
+    if(!verify_post_format(music)) {
         printf("Music Format Invalid.");
         return 0;
     }
@@ -328,6 +341,8 @@ int insert_post(const char* input) {
 
 //Regster New Node and send out your chain length
 void register_new_node(const char* input) {
+
+    if(input == NULL) return;
 
     if(strlen(input) > SHORT_MESSAGE_LENGTH) {
         printf("IP address too long to register!");
@@ -452,7 +467,7 @@ int prune_chains(bt_node* current_node) {
 
     if( (time(NULL) - ((alt_chain*)current_node->data)->last_time) > 60 ) {
         printf("Pruning chain with ID: '%s'\n", current_node->key);
-        dict_del_elem(foreign_chains,current_node->key,0);
+        dict_del_elem(foreign_chains,current_node->key,1);
     }
 
     return 1;
@@ -617,8 +632,11 @@ void process_message(const char* in_msg) {
 //Inbound thread function - receives messages and adds them to execution queue
 void* in_server() {
     
-    printf("Blockchain in C Major: Server v0.1\n");
-    printf("Node IP: %s\n\n", our_ip);
+    printf("Blockchain in C Major: Server v0.8\n");
+    printf("Node IP: %s\n", our_ip);
+    printf("Other node List: %s\n", node_list_file);
+    printf("Pri Key File: %s\n", pri_file);
+    printf("Pub Key FIle: %s\n", pub_file);
 
     sock_in = nn_socket (AF_SP, NN_PULL);
     assert (sock_in >= 0);
@@ -720,11 +738,11 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
 
 
 //Read configuration file
-int read_config() {
+int read_node_list() {
 
-    printf("Using configuration file: '%s'\n", config_file);
+    printf("Using configuration file: '%s'\n", node_list_file);
 
-    FILE* config = fopen(config_file, "r");
+    FILE* config = fopen(node_list_file, "r");
     if(config == NULL) return 0;
 
     printf("Reading configuration file...\n");
@@ -756,8 +774,8 @@ void* li_write_string_file(list* in_list, li_node* in_node, void* data) {
 
 //Write configuration file
 int write_config() {
-    printf("Saving ip addresses to file '%s': \n", "node3.cfg");
-    FILE* config = fopen("node3.cfg", "w"); //config_file
+    printf("Saving ip addresses to file '%s': \n", node_list_file);
+    FILE* config = fopen(node_list_file, "w"); //node_list_file
     if(config == NULL) return 0;
 
     li_foreach(other_nodes,li_write_string_file,config);
@@ -811,6 +829,98 @@ void graceful_shutdown(int dummy) {
     exit(0);
 }
 
+int setup_ip_address(char* in_ip_address) {
+
+    if(in_ip_address == NULL) return 0;
+
+    else if(strlen(in_ip_address) < 300){
+        strcpy(our_ip, in_ip_address);
+        return 1;
+    }
+
+    printf("Provide a valid address with a length less than 300 characters.\n");
+    return 0;
+}
+
+int setup_pri_key(char* in_pri_key) {
+
+    if(in_pri_key == NULL) return 0;
+
+    //Get our config file from argument
+    if(strlen(in_pri_key) < 300) {
+        strcpy(pri_file, in_pri_key);
+        return 1;
+    }
+
+    printf("Provide a valid pub key file with a named length of less than 300 characters.\n");
+    return 0;
+}
+
+int setup_pub_key(char* in_pub_key) {
+
+    if(in_pub_key == NULL) return 0;
+
+    //Get our config file from argument
+    if(strlen(in_pub_key) < 300) {
+        strcpy(pub_file, in_pub_key);
+        return 1;
+    }
+
+    printf("Provide a valid pub key file with a named length of less than 300 characters.\n");
+    return 0;
+}
+
+int setup_node_list(char* in_node_list) {
+
+    if(in_node_list == NULL) return 0;
+
+    //Get our config file from argument
+    if(strlen(in_node_list) < 300) {
+        strcpy(node_list_file, in_node_list);
+        return 1;
+    }
+
+    printf("Provide a valid node file path with a length less than 300 characters.\n");
+    return 0;
+
+}
+
+
+//Parses and processes commandline arguments
+int command_line_parser(int argc, char* argv[]) {
+
+    if(argv == NULL) return 0;
+
+    //Process commandline arguments (skip #1)
+    for(int i = 1; i < argc; i = i + 2) {
+
+        if(argv[i] == NULL || argv[i + 1] == NULL)
+            return 0;
+
+        if(!strcmp(argv[i],"-i")){
+            if(!setup_ip_address(argv[i + 1]))
+                return 0;
+        }
+        else if(!strcmp(argv[i],"-n")){
+            if(!setup_node_list(argv[i + 1]))
+                return 0;
+        }
+        else if(!strcmp(argv[i],"-pri")) {
+            if(!setup_pri_key(argv[i + 1]))
+                return 0;
+        }
+        else if(!strcmp(argv[i],"-pub")) {
+            if(!setup_pub_key(argv[i + 1]))
+                return 0;
+        }
+        else {
+            return 0;
+        }
+
+    }
+
+    return 1;
+}
 
 
 //The star of the show
@@ -828,16 +938,36 @@ int main(int argc, char* argv[]) {
     OpenSSL_add_all_ciphers();
     ERR_load_crypto_strings();
 
-    //Get our ip address from argument
-    if(argc < 2) strcpy(our_ip, "ipc:///tmp/pipeline_0.ipc");
-    else if(strlen(argv[1]) < 300) strcpy(our_ip, argv[1]);
-    else printf("Provide a valid address with a length less than 300 characters.\n");
+    //Load defaults
+    strcpy(our_ip, "ipc:///tmp/pipeline_0.ipc");
+    strcpy(node_list_file, "node.cfg");
+    strcpy(pri_file, "pri_0.pem");
+    strcpy(pub_file, "pub_0.pem");
 
+    //Create foreign chain dict
+    foreign_chains = dict_create();
+
+    //Create list of other nodes
+    other_nodes = list_create();
+
+    //Process commandline arguments
+    int setup = command_line_parser(argc, argv);
+    if(!setup) {
+        printf("Usage: ./node -i {ip_address} -n {node_list} -pri {private_key} -pub {public_key}\n");
+        return 0;
+    }
+    
+    //Read in node_list
+    int success = read_node_list();
+    if(success) {
+        printf("All good.\n");
+    }
+    else {
+        printf("Please provide a proper node list file.\n");
+        return 0;
+    }
+    
     //Try to read keys first
-    char pri_file[500];
-    sprintf(pri_file, "pri.pem");
-    char pub_file[500];
-    sprintf(pub_file,"pub.pem");
     int keys_good = read_keys(&our_keys,pri_file, pub_file);
     if(keys_good == 0){
         RSA_free(our_keys);
@@ -845,7 +975,6 @@ int main(int argc, char* argv[]) {
 
     }
     create_keys(&our_keys,&pri_key,&pub_key);
-
     //Otherwise Generate our pri/pub address keys
     if(keys_good) {
         printf("Read Keypair:\n\n");
@@ -856,31 +985,6 @@ int main(int argc, char* argv[]) {
     } 
     strip_pub_key(stripped_pub_key, pub_key);
     printf("%s%s\n\n", pri_key, pub_key);
-
-    //Create foreign chain dict
-    foreign_chains = dict_create();
-
-    //Create list of other nodes
-    other_nodes = list_create();
-
-
-    //Get our config file from argument
-    if(argc < 3) strcpy(config_file, "node.cfg");
-    else if( argc == 3 && strlen(argv[2]) < 300) {
-        strcpy(config_file, argv[2]);
-    } 
-    else{
-        printf("Provide a valid config file path with a length less than 300 characters.\n");
-        return 0;
-    }
-    int success = read_config();
-    if(success) {
-        printf("All good.\n");
-    }
-    else {
-        printf("Please provide a proper configuration file.\n");
-        return 0;
-    }
 
 
     //Create list of outbound msgs & add our ip to be sent to all nodes

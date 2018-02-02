@@ -8,6 +8,14 @@ typedef struct message_item {
 //Outbound thread
 int mine();
 
+//Setup functions
+int setup_ip_address(char* in_ip_address);
+int setup_pri_key(char* in_pri_key);
+int setup_pub_key(char* in_pub_key);
+int setup_node_list(char* in_node_list);
+int command_line_parser(int argc, char* argv[]);
+
+
 //Inbound thread
 int compare_length(const char* input);
 int verify_foreign_block(const char* input);
@@ -30,10 +38,12 @@ void* announce_existance(list* in_list, li_node* in_item, void* data);
 int insert_trans(const char* input);
 int insert_post(const char* input);
 void register_new_node(const char* input);
+int verify_post_format(const char* post);
+
 
 
 void process_message(const char* in_msg);
-int read_config();
+int read_node_list();
 void graceful_shutdown(int dummy);
 void setup_message(message_item* in_message);
 int print_balance(bt_node* current_node);

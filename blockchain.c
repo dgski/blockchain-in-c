@@ -682,7 +682,7 @@ bool valid_proof(char* last_hash, char* trans_hash,  long proof) {
     hash256(hash_value,guess);
 
     if(1)
-        return (hash_value[0] == '0' && hash_value[1] == '0' /*&& hash_value[2] == '0' && (hash_value[3] > 60 && hash_value[3] < 127)*/);
+        return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0'  /*&& (hash_value[3] > 60 && hash_value[3] < 127)*/);
     else
         return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' && (hash_value[3] > 60 && hash_value[3] < 127));
 
