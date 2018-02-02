@@ -13,6 +13,7 @@ int setup_ip_address(char* in_ip_address);
 int setup_pri_key(char* in_pri_key);
 int setup_pub_key(char* in_pub_key);
 int setup_node_list(char* in_node_list);
+int setup_chain_file(char* in_chain_file);
 int command_line_parser(int argc, char* argv[]);
 
 
@@ -21,6 +22,7 @@ int compare_length(const char* input);
 int verify_foreign_block(const char* input);
 int request_chain(const char* address);
 int send_our_chain(const char* address);
+int save_chain_to_file(blockchain* in_chain, char* file_name);
 
 //Workers
 void* in_server();

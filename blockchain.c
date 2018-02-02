@@ -1012,29 +1012,6 @@ int strip_pub_key(char* output, char* pub_key) {
 
 
 
-int save_chain_to_file(blockchain* in_chain, char* file_name) {
-
-    printf("Saving our chain to file: '%s'\n", file_name);
-    FILE* chain_file = fopen(file_name, "w"); //blockchain_file name
-    if(chain_file == NULL) return 0;
-
-    blink* temp = in_chain->head;
-
-    while(temp != NULL) {
-        
-        char block_to_write[BLOCK_STR_SIZE];
-        string_block(block_to_write,&temp->data);
-        strcat(block_to_write,"\n");
-        fwrite(block_to_write,1,strlen(block_to_write), chain_file);
-
-        temp = temp->next;
-    }
-
-    fclose(chain_file);
-
-    return 1;
-
-}
 
 
 

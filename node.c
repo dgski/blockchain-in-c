@@ -410,6 +410,49 @@ void register_new_node(const char* input) {
 
 }
 
+//Save our chain in .noins format
+int save_chain_to_file(blockchain* in_chain, char* file_name) {
+
+    printf("Saving our chain to file: '%s'\n", file_name);
+    FILE* chain_file = fopen(file_name, "w"); //blockchain_file name
+    if(chain_file == NULL) return 0;
+
+    blink* temp = in_chain->head;
+
+    while(temp != NULL) {
+        
+        char block_to_write[BLOCK_STR_SIZE];
+        string_block(block_to_write,&temp->data);
+        strcat(block_to_write,"\n");
+        fwrite(block_to_write,1,strlen(block_to_write), chain_file);
+
+        temp = temp->next;
+    }
+
+    fclose(chain_file);
+
+    return 1;
+
+}
+
+int read_chain_from_file(blockchain* in_chain, char* file_name) {
+
+    printf("Reading our chain from file: '%s'\n", file_name);
+    FILE* chain_file = fopen(file_name, "r"); //blockchain_file name
+    if(chain_file == NULL) return 0;
+
+    char buffer[BLOCK_STR_SIZE] = {0};
+    while (fgets(buffer, sizeof(buffer), chain_file)) {
+        if(buffer[strlen(buffer) -1] == '\n') buffer[strlen(buffer) -1] = 0;
+        printf("READ FROM FILE: %s", buffer);
+    }
+    fclose(chain_file);
+
+    return 0;
+
+
+}
+
 //Send request for complete chain to address of claimant
 int request_chain(const char* address) {
 
@@ -507,6 +550,7 @@ int prune_chains(bt_node* current_node) {
 
     return 1;
 }
+
 
 
 int verify_foreign_block(const char* input) {
@@ -671,7 +715,9 @@ void* in_server() {
     printf("Node IP: %s\n", our_ip);
     printf("Other node List: %s\n", node_list_file);
     printf("Pri Key File: %s\n", pri_file);
-    printf("Pub Key FIle: %s\n", pub_file);
+    printf("Pub Key File: %s\n", pub_file);
+    printf("Chain File: %s\n", our_chain_file);
+
 
     sock_in = nn_socket (AF_SP, NN_PULL);
     assert (sock_in >= 0);
@@ -923,6 +969,21 @@ int setup_node_list(char* in_node_list) {
 
 }
 
+int setup_chain_file(char* in_chain_file) {
+
+    if(in_chain_file == NULL) return 0;
+
+    //Get our config file from argument
+    if(strlen(in_chain_file) < 300) {
+        strcpy(our_chain_file, in_chain_file);
+        return 1;
+    }
+
+    printf("Provide a valid node file path with a length less than 300 characters.\n");
+    return 0;
+
+}
+
 
 //Parses and processes commandline arguments
 int command_line_parser(int argc, char* argv[]) {
@@ -951,6 +1012,10 @@ int command_line_parser(int argc, char* argv[]) {
             if(!setup_pub_key(argv[i + 1]))
                 return 0;
         }
+        else if(!strcmp(argv[i], "-c")) {
+            if(!setup_chain_file(argv[i + 1]))
+                return 0;
+        }
         else {
             return 0;
         }
@@ -967,8 +1032,7 @@ int main(int argc, char* argv[]) {
     //Ctrl-C Handler
     signal(SIGINT, graceful_shutdown);
 
-    //Create our blockchain
-    our_chain = new_chain();
+    
     beaten = 0;
 
     //Initialize Crypto
@@ -994,6 +1058,12 @@ int main(int argc, char* argv[]) {
     if(!setup) {
         printf("Usage: ./node -i {ip_address} -n {node_list} -pri {private_key} -pub {public_key}\n");
         return 0;
+    }
+
+    ////Create our blockchain and Process chain file
+    int chain_good = read_chain_from_file(our_chain, our_chain_file);
+    if(!chain_good) {
+        our_chain = new_chain();
     }
     
     //Read in node_list
