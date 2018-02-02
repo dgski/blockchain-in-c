@@ -255,6 +255,34 @@ void* announce_existance(list* in_list, li_node* in_item, void* data) {
     return NULL;
 }
 
+void* announce_message(list* in_list, li_node* in_item, void* data) {
+
+    char* out_message = (char*)data;
+
+    if(in_item == NULL || in_item->size > 300) return NULL;
+
+    char data_string[SHORT_MESSAGE_LENGTH];
+    memcpy(data_string,in_item->data,in_item->size);
+    data_string[in_item->size] = 0;
+
+    if(!strcmp(data_string, our_ip)){
+        return NULL;
+    }
+   
+    message_item announcement;
+    setup_message(&announcement);
+    strcpy(announcement.toWhom, data_string);
+    strcpy(announcement.message, out_message);
+
+    pthread_mutex_lock(&our_mutex);
+    li_append(outbound_msg_queue,&announcement,sizeof(announcement));
+    pthread_mutex_unlock(&our_mutex);
+
+    return NULL;
+
+
+}
+
 //Insert transaction [sender receiver amount]
 int insert_trans(const char* input) {
 
@@ -358,7 +386,13 @@ void register_new_node(const char* input) {
     }
     else {
         li_append(other_nodes, add_who, strlen(add_who) + 1);
-        printf("Added '%s'\n", add_who);
+        printf("Added '%s' ... Propgating.\n", add_who);
+
+        char mess_to_prop[400];
+        sprintf(mess_to_prop,"N %s", input);
+        li_foreach(other_nodes, announce_message,mess_to_prop);
+
+
     }
 
     printf("Sending chain length to: %s\n ", add_who);

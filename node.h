@@ -33,6 +33,7 @@ void* process_outbound(list* in_list, li_node* input, void* data);
 void* print_queue(void* data);
 void* announce_length(list* in_list, li_node* in_item, void* data);
 void* announce_existance(list* in_list, li_node* in_item, void* data);
+void* announce_message(list* in_list, li_node* in_item, void* data);
 
 
 int insert_trans(const char* input);
