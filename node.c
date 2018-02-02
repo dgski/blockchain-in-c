@@ -13,7 +13,7 @@
 #include "data_containers/linked_list.h"
 #include "node.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #define MESSAGE_LENGTH 100000
 #define SHORT_MESSAGE_LENGTH 300
 
@@ -31,6 +31,7 @@ char* pri_key;
 
 char pri_file[300];
 char pub_file[300];
+char our_chain_file[300];
 
 //Blockchains
 blockchain* our_chain;
@@ -844,6 +845,9 @@ void graceful_shutdown(int dummy) {
     li_discard(outbound_msg_queue);
     li_discard(inbound_msg_queue);
 
+    //Save blockchain to file
+    save_chain_to_file(our_chain, our_chain_file);
+
     //Discard blockchains
     discard_chain(our_chain);
     dict_foreach(foreign_chains, destroy_chains_in_dict, NULL);
@@ -977,6 +981,7 @@ int main(int argc, char* argv[]) {
     strcpy(node_list_file, "node.cfg");
     strcpy(pri_file, "pri_0.pem");
     strcpy(pub_file, "pub_0.pem");
+    strcpy(our_chain_file, "chain_0.noins");
 
     //Create foreign chain dict
     foreign_chains = dict_create();

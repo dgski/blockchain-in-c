@@ -92,6 +92,7 @@ typedef struct alt_chain {
 //Chain functions
 blockchain* new_chain();
 int discard_chain(blockchain* in_chain);
+int save_chain_to_file(blockchain* in_chain, char* file_name);
 void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, int in_amount,char* in_signature);
 void new_post(blockchain* in_chain, char* in_sender, char in_data, char* in_signature);
 blink* append_current_block(blockchain* in_chain, long in_proof);
@@ -107,7 +108,6 @@ int extract_transactions_raw(transaction* trans_array, char* in_trans);
 
 int extract_posts_raw(post* post_array, char* input_posts_string);
 int validate_posts(blockchain* in_chain, post* new_post_array, int nr_of_posts);
-int verify_post_format(const char* post);
 
 
 

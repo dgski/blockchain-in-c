@@ -682,7 +682,7 @@ bool valid_proof(char* last_hash, char* trans_hash,  long proof) {
     hash256(hash_value,guess);
 
     if(1)
-        return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0'  /*&& (hash_value[3] > 60 && hash_value[3] < 127)*/);
+        return (hash_value[0] == '0' && hash_value[1] == '0' /* && hash_value[2] == '0'  && (hash_value[3] > 60 && hash_value[3] < 127)*/);
     else
         return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' && (hash_value[3] > 60 && hash_value[3] < 127));
 
@@ -1009,6 +1009,33 @@ int strip_pub_key(char* output, char* pub_key) {
 
     return 0;
 }
+
+
+
+int save_chain_to_file(blockchain* in_chain, char* file_name) {
+
+    printf("Saving our chain to file: '%s'\n", file_name);
+    FILE* chain_file = fopen(file_name, "w"); //blockchain_file name
+    if(chain_file == NULL) return 0;
+
+    blink* temp = in_chain->head;
+
+    while(temp != NULL) {
+        
+        char block_to_write[BLOCK_STR_SIZE];
+        string_block(block_to_write,&temp->data);
+        strcat(block_to_write,"\n");
+        fwrite(block_to_write,1,strlen(block_to_write), chain_file);
+
+        temp = temp->next;
+    }
+
+    fclose(chain_file);
+
+    return 1;
+
+}
+
 
 
 //Block-link FUNCTIONS:
