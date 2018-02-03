@@ -35,6 +35,7 @@ typedef struct transaction {
 } transaction;
 
 typedef struct post {
+    int time_of;
     char poster[PUBLIC_ADDRESS_SIZE];
     char data;
     char signature[550];
@@ -52,7 +53,8 @@ typedef struct block {
     char previous_hash[HASH_HEX_SIZE];
 } block;
 
-//Chain link structure
+//Chain link structurevoid new_post(blockchain* in_chain, int time_of, char* in_sender, char in_data, char* in_signature) {
+
 typedef struct blink {
     block data;
     struct blink* next;
@@ -94,7 +96,7 @@ typedef struct alt_chain {
 blockchain* new_chain();
 int discard_chain(blockchain* in_chain);
 void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, int in_amount,char* in_signature);
-void new_post(blockchain* in_chain, char* in_sender, char in_data, char* in_signature);
+void new_post(blockchain* in_chain, int time_of, char* in_sender, char in_data, char* in_signature);
 blink* append_current_block(blockchain* in_chain, long in_proof);
 blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int in_time, transaction* trans_list,
  post* posts, unsigned int trans_list_length, unsigned int posts_list_length, long proof);

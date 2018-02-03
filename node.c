@@ -384,10 +384,11 @@ int verify_post_format(const char* post) {
 //Insert [post] [sender post]
 int insert_post(const char* input) {
 
+    char time_of[20] = {0};
     char sender[1000] = {0};
     char music[5] = {0};
     char signature[513] = {0};
-    sscanf(input, "%s %s %s", sender, music, signature);
+    sscanf(input, "%s %s %s %s", time_of, sender, music, signature);
 
     printf("%s, LENGTH OF: %lu\n", music, strlen(music));
 
@@ -396,6 +397,7 @@ int insert_post(const char* input) {
         return 0;
     }
 
+    // TEMP DISABLE FOR TESTING
     //Check if user has enough in quick ledger
     void* sender_balance = dict_access(our_chain->quickledger, sender);
     if(sender_balance == NULL || (int)sender_balance < 1) {
@@ -407,14 +409,16 @@ int insert_post(const char* input) {
     printf("NOTE TO ADD: '%c'\n", data);
 
     char message[2000];
-    sprintf(message, "%s %s", sender, music);
+    sprintf(message, "%s %s %s ", time_of, sender, music);
+
+    printf("MESSAGE TO VERIFY: '%s'\n", message);
 
     if(!verify_message(message, sender,signature)) {
         printf("Post invalid!\n");
         return 0;
     }
 
-    new_post(our_chain,sender,music[0],signature);
+    new_post(our_chain, atoi(time_of),sender,music[0],signature);
 
     return 1;
 }
@@ -1033,11 +1037,53 @@ void* out_server() {
         usleep(1000);
     }
 }
+/*
+void* out_message_sep(void* in_data) {
+
+    list_and_node_combo* the_combo = (list_and_node_combo*)in_data;
+
+    li_node* input = (li_node*)the_combo->the_node;
+    list* in_list = (list*)the_combo->the_list;
+
+    message_item* our_message = (message_item*)input->data;
+    socket_item* sock_out_to_use = (socket_item*)dict_access(out_sockets,our_message->toWhom);
+
+    if(sock_out_to_use == NULL) return NULL;
+
+    printf("Sending to: %s, ",our_message->toWhom);
+    int bytes = nn_send (sock_out_to_use->socket, our_message->message, strlen(our_message->message), 0);
+    printf("Bytes sent: %d\n", bytes);
+    sock_out_to_use->last_used = time(NULL);
+
+    //Update socket usage time
+    dict_insert(out_sockets,our_message->toWhom,sock_out_to_use,sizeof(*sock_out_to_use));
+
+    //Try three times
+    if(bytes > 0 || our_message->tries == 2) li_delete_node(in_list, input);
+    else our_message->tries++;
+
+    free(in_data);
+
+    return NULL;
+
+}*/
 
 //Done to each message in 'outbound_msg_queue'. input is of type message_item struct
 void* process_outbound(list* in_list, li_node* input, void* data) {
 
     if(input == NULL) return NULL;
+
+    /*
+    list_and_node_combo* the_combo = malloc(sizeof(list_and_node_combo));
+    the_combo->the_list = in_list;
+    the_combo->the_node = input;
+    the_combo->the_data = data;
+
+    pthread_t new_thread;
+    pthread_create(&new_thread,NULL,out_message_sep, &the_combo);
+
+    return NULL;
+    */
 
     message_item* our_message = (message_item*)input->data;
     socket_item* sock_out_to_use = (socket_item*)dict_access(out_sockets,our_message->toWhom);

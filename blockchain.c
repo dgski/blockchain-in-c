@@ -124,20 +124,23 @@ int hash_transactions(char* output, transaction* trans_array, unsigned int trans
 }
 
 
-void new_post(blockchain* in_chain, char* in_sender, char in_data, char* in_signature) {
+void new_post(blockchain* in_chain, int time_of, char* in_sender, char in_data, char* in_signature) {
 
     //Posts full
     if(in_chain->post_index > 19)
         return;
 
+
     int index = in_chain->post_index++;
     strcpy(in_chain->new_posts[index].poster, in_sender);
     in_chain->new_posts[index].data = in_data;
+    in_chain->new_posts[index].time_of = time_of;
     strcpy(in_chain->new_posts[index].signature, in_signature);
-
-    //TODO: UPDATE QUICK LEDGER
+    
+    //Update Quick Ledger
     void* sender_funds = dict_access(in_chain->quickledger, in_sender);
     int sender_future_balance = 0;
+    
     if(sender_funds == NULL) {
         printf("Cannot Insert Post: Quickledger entry does not exist.\n");
         return;
@@ -145,6 +148,9 @@ void new_post(blockchain* in_chain, char* in_sender, char in_data, char* in_sign
     else {
         sender_future_balance = *((int*)sender_funds) - 1;
     } 
+    
+    sender_future_balance--;
+
     dict_insert(in_chain->quickledger, in_sender, &sender_future_balance, sizeof(sender_funds));
 
     hash_transactions(in_chain->trans_hash, in_chain->trans_list,in_chain->trans_index,in_chain->new_posts, in_chain->post_index);
@@ -329,7 +335,7 @@ char* string_block(char* output, block* in_block) {
     else {
     //Add posts
     for(int i = 0; i < in_block->posts_list_length; i++) {
-        sprintf(buffer,"%s:%c:%s",in_block->posts[i].poster, in_block->posts[i].data,in_block->posts[i].signature); 
+        sprintf(buffer,"%d:%s:%c:%s",in_block->posts[i].time_of,in_block->posts[i].poster, in_block->posts[i].data,in_block->posts[i].signature); 
         if(i + 1 != in_block->posts_list_length) strcat(buffer,"-");
         strcat(block_string, buffer);
     }
@@ -391,10 +397,10 @@ char* string_trans_nosig(char* output, char* sender, char* receiver, int amount)
     return output;
 }
 
-char* string_post_nosig(char* output, char* sender, char data) {
+char* string_post_nosig(char* output, int time_of, char* sender, char data) {
 
 
-    sprintf(output,"%s %c",sender, data);
+    sprintf(output,"%d %s %c ",time_of,sender, data);
 
     return output;
 }
@@ -420,20 +426,19 @@ int extract_posts_raw(post* post_array, char* input_posts_string) {
         counter++;
     }
 
+    char* time_of;
     char* poster;
     char* data;
     char* signature;
 
     for(int i = 0; post_strings[i] != 0; i++) {
 
-        poster = strtok(post_strings[i],":");
-        //printf("sender: %s\n", sender);
+        time_of = strtok(post_strings[i],":");
+        poster = strtok(NULL,":");
         data = strtok(NULL, ":");
-        //printf("amount: %s\n", amount);
         signature = strtok(NULL, ":");
-        //printf("signature: %s\n", signature);
 
-       
+        post_array[i].time_of = atoi(time_of);
         strcpy(post_array[i].poster, poster);
         post_array[i].data = *data;
         strcpy(post_array[i].signature, signature);
@@ -553,7 +558,7 @@ int validate_posts(blockchain* in_chain, post* new_post_array, int nr_of_posts) 
     for(int i = 0; i < nr_of_posts; i ++) {
         printf("VERIFYING POST:\n");
         char output[1500] = {0};
-        string_post_nosig(output, new_post_array[i].poster, new_post_array[i].data);
+        string_post_nosig(output, new_post_array[i].time_of, new_post_array[i].poster, new_post_array[i].data);
 
         if(!verify_message(output,new_post_array[i].poster, new_post_array[i].signature))
             return 0;

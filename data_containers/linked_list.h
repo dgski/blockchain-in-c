@@ -16,6 +16,12 @@ typedef struct list
     int length;
 } list;
 
+ typedef struct list_and_node_combo {
+        list* the_list;
+        li_node* the_node;
+        void* the_data;
+    } list_and_node_combo;
+
 //ing list functions
 list* list_create();
 li_node* li_new(void* input, size_t in_size);
