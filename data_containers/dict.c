@@ -167,6 +167,8 @@ int dict_insert(dict* in_dict, char* in_key, void* in_data, size_t in_size) {
     
     bt_node* temp = bt_node_search(in_dict->head, in_key);
 
+    if(temp == NULL) return 0;
+
     //Replace value already in there
     if(!strcmp(temp->key, in_key)) {
         free(temp->data);

@@ -57,6 +57,7 @@ list* inbound_msg_queue; //holds recieved char* messages to execute
 //Sockets
 int sock_in;
 int sock_out;
+dict* out_sockets;
 
 
 
@@ -110,6 +111,21 @@ int destroy_chains_in_dict(bt_node* current_node) {
 
     alt_chain* to_destroy = (alt_chain*)current_node->data;
     discard_chain(to_destroy->the_chain);
+    
+    return 1;
+}
+
+//Frees memory of all chains in a dict
+int destroy_sockets_in_dict(bt_node* current_node) {
+
+    if(current_node == NULL || current_node->data == NULL) return 0;
+    
+    socket_item* the_socket = (socket_item*)current_node->data;
+
+    if(the_socket == NULL) return 0;
+
+    nn_close(the_socket->socket);
+    dict_del_elem(out_sockets,current_node->key,0);
     
     return 1;
 }
@@ -284,6 +300,35 @@ void* announce_message(list* in_list, li_node* in_item, void* data) {
 
 }
 
+void* send_node_list_to(list* in_list, li_node* in_item, void* data) {
+    
+    char* out_dest = (char*)data;
+
+    if(in_item == NULL || in_item->size > 300) return NULL;
+
+    char data_string[SHORT_MESSAGE_LENGTH];
+    memcpy(data_string,in_item->data,in_item->size);
+    data_string[in_item->size] = 0;
+
+    if(!strcmp(data_string, our_ip)){
+        return NULL;
+    }
+
+    char outbound_msg[500] = {0};
+    sprintf(outbound_msg,"N %s", data_string);
+   
+    message_item announcement;
+    setup_message(&announcement);
+    strcpy(announcement.toWhom, out_dest);
+    strcpy(announcement.message, outbound_msg);
+
+    pthread_mutex_lock(&our_mutex);
+    li_append(outbound_msg_queue,&announcement,sizeof(announcement));
+    pthread_mutex_unlock(&our_mutex);
+
+    return NULL;
+}
+
 //Insert transaction [sender receiver amount]
 int insert_trans(const char* input) {
 
@@ -368,6 +413,32 @@ int insert_post(const char* input) {
     return 1;
 }
 
+int create_socket(const char* input) {
+
+    char address[SHORT_MESSAGE_LENGTH];
+    strcpy(address, input);
+
+    printf("Creating socket for... %s\n", address);
+
+    socket_item new_out_socket;
+
+    new_out_socket.last_used = time(NULL);
+
+    new_out_socket.socket = nn_socket(AF_SP, NN_PUSH);
+    assert (new_out_socket.socket >= 0);
+    int timeout = 50;
+    assert (nn_setsockopt(new_out_socket.socket, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
+
+    if(nn_connect (new_out_socket.socket, address) < 0){
+        printf("Connection Error.\n");
+        nn_close(new_out_socket.socket);
+    }
+    
+    dict_insert(out_sockets,address,&new_out_socket,sizeof(new_out_socket));
+
+    return 0;
+}
+
 //Regster New Node and send out your chain length
 void register_new_node(const char* input) {
 
@@ -391,13 +462,20 @@ void register_new_node(const char* input) {
         printf(" Already registered. ");
     }
     else {
+        //Add to our list
         li_append(other_nodes, add_who, strlen(add_who) + 1);
+
+        //Create socket
+        create_socket(input);
+
+        //Propagate
         printf("Added '%s' ... Propgating.\n", add_who);
-
         char mess_to_prop[400];
-        sprintf(mess_to_prop,"N %s", input);
-        li_foreach(other_nodes, announce_message,mess_to_prop);
+        sprintf(mess_to_prop,"N %s", add_who);
+        li_foreach(other_nodes, announce_message,mess_to_prop); //Send out to all other nodes registered
 
+        //Send our nodes list
+        li_foreach(other_nodes, send_node_list_to, add_who);
 
     }
 
@@ -440,6 +518,99 @@ int save_chain_to_file(blockchain* in_chain, char* file_name) {
 
 }
 
+int verify_file_block(const char* input, int* curr_index) {
+
+
+    char f_block[MESSAGE_LENGTH] = {0};
+    strcpy(f_block, input);
+    
+    char* index = strtok(f_block, ".");
+    char* time_gen = strtok(NULL, ".");
+    char* posts = strtok(NULL,".");
+    char* posts_size = strtok(NULL, ".");
+    char* transactions = strtok(NULL, ".");
+    char* trans_size = strtok(NULL, ".");
+    char* proof = strtok(NULL, ".");
+    char* hash = strtok(NULL, ".");
+
+    printf("Block with index %d recieved\n", atoi(index));
+
+
+    //First time encountering this chain - came with index 0
+    if(atoi(index) == 0) {
+        printf("Creating chain for this block.\n");
+        our_chain = new_chain();
+        *(curr_index) = *(curr_index) + 1 ;
+        return 1;
+    }
+    //First time encountering this chain - came with index > 0
+    else if(our_chain == NULL && atoi(index) != 0) {
+        printf("No chain for non-zero index block.\n");
+        return 0;
+    }
+    //Block came with index not expected by sequencer
+    if(atoi(index) != *curr_index) {
+        printf("Not expecting this index number\n");
+        return 0;
+    }
+    // Everything good... Get ready for next block
+    else {
+        *(curr_index) = *(curr_index) + 1 ;
+    }
+
+    long the_proof;
+    sscanf(proof,"%020ld",&the_proof);
+    printf("Recieved Proof: %ld\n", the_proof);
+    printf("Index Recieved: %d\n",atoi(index));
+    printf("Current length: %d\n",our_chain->length);
+    printf("Last Hash: %s\n",our_chain->last_hash);
+
+    char trans_hash[HASH_HEX_SIZE];
+    transaction new_trans_array[20] = {0};
+
+    extract_transactions_raw(new_trans_array,transactions);
+
+    post new_post_array[BLOCK_DATA_SIZE] = {0};
+    int nr_of_posts = extract_posts_raw(new_post_array,posts);
+
+    hash_transactions(trans_hash,new_trans_array, atoi(trans_size), new_post_array, atoi(posts_size));
+
+    //Chain is valid
+    if(valid_proof(our_chain->last_hash,trans_hash, the_proof)){
+
+        transaction rec_trans[20] = {0};
+        int all_valid_trans = extract_transactions(our_chain, rec_trans, transactions);
+        int all_valid_posts = validate_posts(our_chain,new_post_array,atoi(posts_size));
+
+        if(!all_valid_trans && !all_valid_posts) {
+            printf("Invalid.\n");
+            return 0;
+        }
+        printf("Valid.\n");
+
+
+        //Add block
+        blink* a_block = append_new_block(our_chain, atoi(index), atoi(time_gen),rec_trans, new_post_array, atoi(trans_size), atoi(posts_size), the_proof);
+
+        printf(ANSI_COLOR_YELLOW);
+        printf("READ BLOCK:\n");
+        print_block(a_block,'-');
+        printf(ANSI_COLOR_RESET);
+        return 1;
+
+    }
+    else {
+        printf("Invalid.\n");
+        discard_chain(our_chain);
+
+    }
+
+    return 0;
+
+
+}
+
+
 int read_chain_from_file(blockchain* in_chain, char* file_name) {
 
     printf("Reading our chain from file: '%s'\n", file_name);
@@ -447,13 +618,18 @@ int read_chain_from_file(blockchain* in_chain, char* file_name) {
     if(chain_file == NULL) return 0;
 
     char buffer[BLOCK_STR_SIZE] = {0};
+    int curr_index = 0;
     while (fgets(buffer, sizeof(buffer), chain_file)) {
         if(buffer[strlen(buffer) -1] == '\n') buffer[strlen(buffer) -1] = 0;
-        printf("READ FROM FILE: %s", buffer);
+        printf("Read from file: %s\n", buffer);
+        int suc_read = verify_file_block(buffer,&curr_index);
+
+        if(!suc_read)
+            return 0;
     }
     fclose(chain_file);
 
-    return 0;
+    return 1;
 
 
 }
@@ -548,9 +724,28 @@ int prune_chains(bt_node* current_node) {
 
     if(current_node == NULL || current_node->data == NULL) return 0;
 
-    if( (time(NULL) - ((alt_chain*)current_node->data)->last_time) > 60 ) {
+    alt_chain* the_chain = (alt_chain*)current_node->data;
+
+    if( time(NULL) - the_chain->last_time > 60 ) {
         printf("Pruning chain with ID: '%s'\n", current_node->key);
-        dict_del_elem(foreign_chains,current_node->key,1);
+        dict_del_elem(foreign_chains,current_node->key,0);
+    }
+
+    return 1;
+}
+
+int prune_sockets(bt_node* current_node) {
+
+    if(current_node == NULL || current_node->data == NULL) return 0;
+    
+    socket_item* the_socket = (socket_item*)current_node->data;
+
+    if(the_socket == NULL) return 0;
+
+    if( time(NULL) - the_socket->last_used > 600 ) {
+        printf("Pruning socket with ip: '%s'\n", current_node->key);
+        nn_close(the_socket->socket);
+        dict_del_elem(out_sockets,current_node->key,0);
     }
 
     return 1;
@@ -596,6 +791,9 @@ int verify_foreign_block(const char* input) {
         printf("No chain for non-zero index block.\n");
         return 0;
     }
+
+    if(this_chain == NULL) return 0;
+
     //Block came with index not expected by sequencer
     if(atoi(index) != this_chain->expected_index) {
         printf("Not expecting this index number\n");
@@ -759,11 +957,12 @@ void* inbound_executor() {
         pthread_mutex_lock(&our_mutex);
         li_foreach(inbound_msg_queue, process_inbound, NULL);
         dict_foreach(foreign_chains,prune_chains,NULL);
+        dict_foreach(out_sockets,prune_sockets,NULL);
         if(close_threads)
             return NULL;
         pthread_mutex_unlock(&our_mutex);
         
-        sleep(1);
+        usleep(1000);
     }
 }
 
@@ -790,7 +989,7 @@ void* out_server() {
             return NULL;
         pthread_mutex_unlock(&our_mutex);
 
-        sleep(1);
+        usleep(1000);
     }
 }
 
@@ -799,24 +998,21 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
 
     if(input == NULL) return NULL;
 
-    sock_out = nn_socket(AF_SP, NN_PUSH);
-    assert (sock_out >= 0);
-    int timeout = 100;
-    assert (nn_setsockopt(sock_out, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
-
     message_item* our_message = (message_item*)input->data;
+    socket_item* sock_out_to_use = (socket_item*)dict_access(out_sockets,our_message->toWhom);
+
+    if(sock_out_to_use == NULL) return NULL;
 
     printf("Sending to: %s, ",our_message->toWhom);
-    if(nn_connect (sock_out, our_message->toWhom) < 0){
-        printf("Connection Error.\n");
-        nn_close(sock_out);
-    }
-    int bytes = nn_send (sock_out, our_message->message, strlen(our_message->message), 0);
+    int bytes = nn_send (sock_out_to_use->socket, our_message->message, strlen(our_message->message), 0);
     printf("Bytes sent: %d\n", bytes);
-    usleep(100000);
-    nn_close(sock_out);
+    sock_out_to_use->last_used = time(NULL);
 
-    if(bytes > 0 || our_message->tries == 0) li_delete_node(in_list, input);
+    //Update socket usage time
+    dict_insert(out_sockets,our_message->toWhom,sock_out_to_use,sizeof(*sock_out_to_use));
+
+    //Try three times
+    if(bytes > 0 || our_message->tries == 2) li_delete_node(in_list, input);
     else our_message->tries++;
 
     return NULL;
@@ -836,7 +1032,12 @@ int read_node_list() {
     char buffer[300] = {0};
     while (fgets(buffer, sizeof(buffer), config)) {
         if(buffer[strlen(buffer) -1] == '\n') buffer[strlen(buffer) -1] = 0;
+
+        //Add to list
         li_append(other_nodes, buffer, strlen(buffer) + 1);
+
+        //Create socket
+        create_socket(buffer);
     }
     fclose(config);
 
@@ -902,6 +1103,7 @@ void graceful_shutdown(int dummy) {
     //Discard blockchains
     discard_chain(our_chain);
     dict_foreach(foreign_chains, destroy_chains_in_dict, NULL);
+    dict_foreach(foreign_chains, destroy_sockets_in_dict, NULL);
     dict_discard(foreign_chains);
     
 
@@ -1057,6 +1259,9 @@ int main(int argc, char* argv[]) {
 
     //Create list of other nodes
     other_nodes = list_create();
+
+    //Create sockets dictionary
+    out_sockets = dict_create();
 
     //Process commandline arguments
     int setup = command_line_parser(argc, argv);

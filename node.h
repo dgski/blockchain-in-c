@@ -5,6 +5,12 @@ typedef struct message_item {
     unsigned int tries;
 } message_item;
 
+//Socket struct
+typedef struct socket_item {
+    int socket;
+    unsigned int last_used;
+} socket_item;
+
 //Outbound thread
 int mine();
 
@@ -15,6 +21,12 @@ int setup_pub_key(char* in_pub_key);
 int setup_node_list(char* in_node_list);
 int setup_chain_file(char* in_chain_file);
 int command_line_parser(int argc, char* argv[]);
+int read_chain_from_file(blockchain* in_chain, char* file_name);
+int verify_file_block(const char* in_block, int* curr_index);
+
+int create_socket(const char* input);
+
+int destroy_sockets_in_dict(bt_node* current_node);
 
 
 //Inbound thread

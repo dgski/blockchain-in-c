@@ -14,7 +14,7 @@
 #define PUBLIC_ADDRESS_SIZE 500
 #define SIG_SIZE 513
 #define GUESS_SIZE 200
-#define CURRENCY_CAP 10
+#define CURRENCY_CAP 888
 #define CURRENCY_SPEED 2
 
 #define ANSI_COLOR_GREEN   "\x1b[32m"
