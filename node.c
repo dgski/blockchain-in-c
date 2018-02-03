@@ -373,6 +373,11 @@ void register_new_node(const char* input) {
 
     if(input == NULL) return;
 
+    if(!strcmp(input, our_ip)) {
+        printf("Someone is propagating us. Word is spreading.\n");
+        return;
+    }
+
     if(strlen(input) > SHORT_MESSAGE_LENGTH) {
         printf("IP address too long to register!");
         return;
