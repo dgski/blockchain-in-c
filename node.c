@@ -79,7 +79,7 @@ int print_keys(bt_node* current_node) {
     
     if(current_node == NULL || current_node->data == NULL) return 0;
 
-    printf("%s,", current_node->key);
+    printf("- %s\n", current_node->key);
     return 1;
 }
 
@@ -210,6 +210,10 @@ int mine() {
 
         printf("\nQUICKLEDGER BALANCES:\n");
         dict_foreach(our_chain->quickledger, print_balance, NULL);
+
+        printf("\nVERIFIED TRANS:\n");
+        dict_foreach(our_chain->verified, print_keys, NULL);
+        printf("\n");
         
         printf("\nTotal Node Earnings: %d noins\n", our_earnings);
         printf("Total Currency in Circulation: %d noins\n\n", our_chain->total_currency);
@@ -917,6 +921,34 @@ void process_message(const char* in_msg) {
         compare_length(to_process + 2);
     if(!strcmp(token, "C"))
         send_our_chain(to_process + 2);
+    if(!strcmp(token, "V"))
+        verify_acceptance_trans_or_post(to_process + 2);
+
+}
+
+int verify_acceptance_trans_or_post(const char* input) {
+
+    char ip_address_out[300];
+    char signature[600];
+
+    sscanf(input,"%s %s", ip_address_out, signature);
+
+    void* entry= dict_access(our_chain->verified,signature);
+
+    //Reply that transaction is included in our chain
+    if(entry == NULL)
+        return 0;
+
+    message_item confirmation;
+    setup_message(&confirmation);
+    strcpy(confirmation.toWhom, ip_address_out);
+    strcpy(confirmation.message, "V ");
+    strcat(confirmation.message, ip_address_out);
+
+    li_append(outbound_msg_queue,&confirmation,sizeof(confirmation));
+    pthread_mutex_unlock(&our_mutex);
+
+    return 1;
 
 }
 
@@ -989,7 +1021,7 @@ void* process_inbound(list* in_list, li_node* input, void* data) {
     return NULL;
 }
 
-//Outbound thread function - tried to send everything in outbound message queue
+//Outbound thread function - tries to send everything in outbound message queue
 void* out_server() {
     while(true) {
         pthread_mutex_lock(&our_mutex);

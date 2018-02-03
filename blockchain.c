@@ -46,6 +46,7 @@ blockchain* new_chain() {
     in_chain->length = 0;
 
     in_chain->quickledger = dict_create();
+    in_chain->verified = dict_create();
 
     in_chain->total_currency = 0;
     
@@ -67,6 +68,9 @@ int discard_chain(blockchain* in_chain) {
 
     //Discard quickledger
     dict_discard(in_chain->quickledger);
+
+    //Discard verifications
+    dict_discard(in_chain->verified);
 
     //Free memory in struct
     free(in_chain);
@@ -145,6 +149,10 @@ void new_post(blockchain* in_chain, char* in_sender, char in_data, char* in_sign
 
     hash_transactions(in_chain->trans_hash, in_chain->trans_list,in_chain->trans_index,in_chain->new_posts, in_chain->post_index);
 
+    //Add to verified
+    int status = 1;
+    dict_insert(in_chain->verified, in_signature, &status,sizeof(status));
+
 }
 
 //Add transaction to transaction_list
@@ -190,6 +198,9 @@ void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, 
     
     hash_transactions(in_chain->trans_hash, in_chain->trans_list,in_chain->trans_index,in_chain->new_posts, in_chain->post_index);
 
+    //Add to verified
+    int status = 1;
+    dict_insert(in_chain->verified, in_signature, &status,sizeof(status));
 
 }
 
@@ -546,6 +557,10 @@ int validate_posts(blockchain* in_chain, post* new_post_array, int nr_of_posts) 
 
         if(!verify_message(output,new_post_array[i].poster, new_post_array[i].signature))
             return 0;
+
+        //Add to verified
+        int status = 1;
+        dict_insert(in_chain->verified, new_post_array[i].signature, &status,sizeof(status));
     }
 
     return 1;
@@ -640,7 +655,9 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, const ch
         recipient_future_balance += atoi(amount);
         dict_insert(in_chain->quickledger, reciever, &recipient_future_balance, sizeof(recipient_future_balance));
 
-
+        //Add to verified
+        int status = 1;
+        dict_insert(in_chain->verified, signature, &status,sizeof(status));
 
 
     }

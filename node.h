@@ -23,6 +23,7 @@ int setup_chain_file(char* in_chain_file);
 int command_line_parser(int argc, char* argv[]);
 int read_chain_from_file(blockchain* in_chain, char* file_name);
 int verify_file_block(const char* in_block, int* curr_index);
+int verify_acceptance_trans_or_post(const char* input);
 
 int create_socket(const char* input);
 

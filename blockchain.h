@@ -77,6 +77,7 @@ typedef struct blockchain {
     unsigned int total_currency;
 
     dict* quickledger;
+    dict* verified;
 
 } blockchain;
 
