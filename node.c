@@ -156,14 +156,14 @@ int mine() {
         char sig[513] = {0};
         char output[2500] = {0};
         if(our_chain->total_currency < CURRENCY_CAP) {
-            string_trans_nosig(output, stripped_pub_key, stripped_pub_key, CURRENCY_SPEED);
+            string_trans_nosig(output, time(NULL),stripped_pub_key, stripped_pub_key, CURRENCY_SPEED);
             message_signature(sig,output, our_keys,pub_key);
-            new_transaction(our_chain,stripped_pub_key,stripped_pub_key, CURRENCY_SPEED, sig);
+            new_transaction(our_chain, time(NULL),stripped_pub_key,stripped_pub_key, CURRENCY_SPEED, sig);
         }
         else {
-            string_trans_nosig(output, stripped_pub_key, stripped_pub_key, 0);
+            string_trans_nosig(output, time(NULL),stripped_pub_key, stripped_pub_key, 0);
             message_signature(sig,output, our_keys,pub_key);
-            new_transaction(our_chain,stripped_pub_key,stripped_pub_key, 0, sig);
+            new_transaction(our_chain,time(NULL),stripped_pub_key,stripped_pub_key, 0, sig);
         }
         pthread_mutex_unlock(&our_mutex);
         }
@@ -211,12 +211,9 @@ int mine() {
         printf("\nQUICKLEDGER BALANCES:\n");
         dict_foreach(our_chain->quickledger, print_balance, NULL);
 
-        printf("\nVERIFIED TRANS:\n");
-        dict_foreach(our_chain->verified, print_keys, NULL);
-        printf("\n");
-        
         printf("\nTotal Node Earnings: %d noins\n", our_earnings);
-        printf("Total Currency in Circulation: %d noins\n\n", our_chain->total_currency);
+        printf("Total Currency in Circulation: %d noins\n", our_chain->total_currency);
+        printf("Verified Transactions: %d\n\n", our_chain->verified->size);
 
 
     }
@@ -343,28 +340,39 @@ int insert_trans(const char* input) {
     char buffer[TRANS_STRING_LENGTH] = {0};
     strcpy(buffer, input);
 
-    char* sender = strtok(buffer," ");
+    char* time_of = strtok(buffer," ");
+    char* sender = strtok(NULL," ");
     char* recipient = strtok(NULL, " ");
     char* amount = strtok(NULL, " ");
     char* signature = strtok(NULL, " ");
     
+    /*TEMPTEMP disabled
     //Check if user has enough in quick ledger
     void* sender_balance = dict_access(our_chain->quickledger, sender);
     if(sender_balance == NULL || (int)sender_balance < atoi(amount)) {
         printf("Insufficient Funds.\n");
         return 0;
-    }
+    }*/
 
-    //Check if transaction is signed
+    char message_to_verify[MESSAGE_LENGTH];
+    string_trans_nosig(message_to_verify, atoi(time_of),sender, recipient, atoi(amount));
+
+    //Check if transaction is signed properly
+    if(!verify_message(message_to_verify, sender, signature))
+        return 0;
+
+
+    /*
     if(!verify_signiture(buffer,sender, recipient, amount, signature))
         return 0;
+    */
 
     printf("\nInserting.\n");
 
     int amount_int;
     sscanf(amount,"%d",&amount_int);
 
-    new_transaction(our_chain,sender,recipient,amount_int,signature);
+    new_transaction(our_chain, atoi(time_of) ,sender,recipient,amount_int,signature);
 
     printf("AFTER ADDING: %s\n", our_chain->trans_list[0].signature);
 

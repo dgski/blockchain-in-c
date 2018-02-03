@@ -87,8 +87,12 @@ int hash_transactions(char* output, transaction* trans_array, unsigned int trans
     for(int i = 0; i < trans_array_length; i++) {
 
         char this_transaction[BLOCK_BUFFER_SIZE];
-        sprintf(this_transaction,"%s %s %d %s ", 
-        trans_array[i].sender, trans_array[i].recipient, trans_array[i].amount, trans_array[i].signature
+        sprintf(this_transaction,"%d %s %s %d %s ", 
+        trans_array[i].amount,
+        trans_array[i].sender,
+        trans_array[i].recipient,
+        trans_array[i].amount,
+        trans_array[i].signature
         );
         strcat(all_transactions,this_transaction);
     }
@@ -96,8 +100,11 @@ int hash_transactions(char* output, transaction* trans_array, unsigned int trans
     for(int i = 0; i < post_array_length; i++) {
 
         char this_post[BLOCK_BUFFER_SIZE];
-        sprintf(this_post,"%s %c %s",
-        post_array[i].poster, post_array[i].data, post_array[i].signature
+        sprintf(this_post,"%d %s %c %s",
+        post_array[i].time_of,
+        post_array[i].poster,
+        post_array[i].data,
+        post_array[i].signature
         );
         strcat(all_transactions,this_post);
     }
@@ -162,7 +169,7 @@ void new_post(blockchain* in_chain, int time_of, char* in_sender, char in_data, 
 }
 
 //Add transaction to transaction_list
-void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, int in_amount, char* in_signature) {
+void new_transaction(blockchain* in_chain, int time_of, char* in_sender, char* in_recipient, int in_amount, char* in_signature) {
 
     //Transactions full
     if(in_chain->trans_index > 19)
@@ -179,6 +186,7 @@ void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, 
     //printf("translist sig: %s\n", in_chain->trans_list[index].signature);
 
     in_chain->trans_list[index].amount = in_amount;
+    in_chain->trans_list[index].time_of = time_of;
 
     //Update quick ledger
     //temp fix for creation transactions
@@ -353,7 +361,7 @@ char* string_block(char* output, block* in_block) {
 
 
         //printf("IN TRANSACTION BUFFER: %s\n", in_block->trans_list[i].signature);
-        sprintf(buffer,"%s:%s:%010d:%s", in_block->trans_list[i].sender,in_block->trans_list[i].recipient,in_block->trans_list[i].amount, in_block->trans_list[i].signature);
+        sprintf(buffer,"%d:%s:%s:%010d:%s", in_block->trans_list[i].time_of, in_block->trans_list[i].sender,in_block->trans_list[i].recipient,in_block->trans_list[i].amount, in_block->trans_list[i].signature);
         
         //printf("TRANSACTION BUFFER:::::::::::: %s\n", buffer);
         
@@ -384,8 +392,12 @@ char* string_block(char* output, block* in_block) {
     return output;
 }
 
-char* string_trans_nosig(char* output, char* sender, char* receiver, int amount) {
+char* string_trans_nosig(char* output, int time_of, char* sender, char* reciever, int amount) {
 
+
+    sprintf(output,"%d %s %s %010d ",time_of, sender, reciever, amount);
+
+    /*
     strcpy(output, sender);
     strcat(output, " ");
     strcat(output, receiver);
@@ -393,6 +405,7 @@ char* string_trans_nosig(char* output, char* sender, char* receiver, int amount)
     char the_amount[20];
     sprintf(the_amount, "%010d", amount);
     strcat(output, the_amount);
+    */
 
     return output;
 }
@@ -466,6 +479,7 @@ int extract_transactions_raw(transaction* trans_array, char* input_trans_string)
         trans_strings[i++] = pointer;
     }
 
+    char* time_of;
     char* sender;
     char* reciever;
     char* amount;
@@ -473,18 +487,16 @@ int extract_transactions_raw(transaction* trans_array, char* input_trans_string)
 
     for(int i = 0; trans_strings[i] != 0; i++) {
 
-        sender = strtok(trans_strings[i],":");
-        //printf("sender: %s\n", sender);
+        time_of = strtok(trans_strings[i],":");
+        sender = strtok(NULL, ":");
         reciever = strtok(NULL, ":");
-        //printf("reciever: %s\n", reciever);
         amount = strtok(NULL, ":");
-        //printf("amount: %s\n", amount);
         signature = strtok(NULL, ":");
-        //printf("signature: %s\n", signature);
 
         char output[5000] = {0};
-        string_trans_nosig(output,sender,reciever,atoi(amount));
-       
+        string_trans_nosig(output,atoi(time_of),sender,reciever,atoi(amount));
+
+        trans_array[i].time_of = atoi(time_of);
         strcpy(trans_array[i].sender, sender);
         strcpy(trans_array[i].recipient, reciever);
         trans_array[i].amount = atoi(amount);
@@ -494,62 +506,6 @@ int extract_transactions_raw(transaction* trans_array, char* input_trans_string)
 
     return 1;
 }
-
-/*
-int validate_and_insert_trans(blockchain* in_chain, transaction* trans_array) {
-
-    for(int i = 0; trans_array[i] <20; i++) {
-
-        char output[2500] = {0};
-        string_trans_nosig(output,trans_array->sender,trans_array->recipient,atoi(trans_array->amount));
-
-        printf("VERIFYING TRANSACTION:\n");
-        if(!verify_signiture(output,sender,reciever,amount,signature))
-            return 0;
-
-        //Transaction is properly signed... now what? Update Quickledger.
-
-        //Addresses are different - cuurency generation
-        if(strcmp(sender, reciever)) {
-            void* sender_funds = dict_access(in_chain->quickledger, sender);
-            int sender_future_balance = 0;
-            if(sender_funds != NULL)
-                sender_future_balance = *((int*)sender_funds) - atoi(amount);
-
-            dict_insert(in_chain->quickledger, sender, &sender_future_balance, sizeof(sender_funds));
-        }
-
-        //Addresses are the same, Currency cap already met, and they are trying to give themselves more
-        if(!strcmp(sender, reciever) && in_chain->total_currency >= CURRENCY_CAP && atoi(amount) != 0) {
-            //return 0;
-            return 1; //temp
-        }
-
-        //Addresses are the same, Trying to givethemselves more than 2
-        if(!strcmp(sender, reciever) && (in_chain->total_currency < CURRENCY_CAP) && (atoi(amount) != CURRENCY_SPEED) ) {
-            //return 0;
-            return 1; //temp
-        }
-
-
-        in_chain->total_currency += CURRENCY_SPEED;
-
-        void* recipient_funds = dict_access(in_chain->quickledger, reciever);
-        int recipient_future_balance = 0;
-        if(recipient_funds != NULL)
-            recipient_future_balance = *((int*)recipient_funds);
-
-        recipient_future_balance += atoi(amount);
-        dict_insert(in_chain->quickledger, reciever, &recipient_future_balance, sizeof(recipient_future_balance));
-
-
-    }
-
-    memcpy(in_chain->trans_list,trans_array,sizeof(transaction) * 20);
-
-
-    return 1;
-}*/
 
 int validate_posts(blockchain* in_chain, post* new_post_array, int nr_of_posts) {
 
@@ -591,6 +547,7 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, const ch
         trans_strings[i++] = pointer;
     }
 
+    char* time_of;
     char* sender;
     char* reciever;
     char* amount;
@@ -598,24 +555,26 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, const ch
 
     for(int i = 0; trans_strings[i] != 0; i++) {
 
-        sender = strtok(trans_strings[i],":");
-        //printf("sender: %s\n", sender);
+        time_of = strtok(trans_strings[i],":");
+        sender = strtok(NULL, ":");
         reciever = strtok(NULL, ":");
-        //printf("reciever: %s\n", reciever);
         amount = strtok(NULL, ":");
-        //printf("amount: %s\n", amount);
         signature = strtok(NULL, ":");
-        //printf("signature: %s\n", signature);
 
         char output[2500] = {0};
-        string_trans_nosig(output,sender,reciever,atoi(amount));
+        string_trans_nosig(output, atoi(time_of),sender,reciever,atoi(amount));
 
         printf("VERIFYING TRANSACTION:\n");
+        /*
         if(!verify_signiture(output,sender,reciever,amount,signature))
             return 0;
+            */
+
+        if(!verify_message(output,sender,signature))
+            return 0 ;
 
 
-
+        trans_array[i].time_of = atoi(time_of);
         strcpy(trans_array[i].sender, sender);
         strcpy(trans_array[i].recipient, reciever);
         trans_array[i].amount = atoi(amount);
@@ -649,8 +608,7 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, const ch
         if(in_chain->total_currency < CURRENCY_CAP)
             in_chain->total_currency += CURRENCY_SPEED;
         
-        
-
+    
 
         void* recipient_funds = dict_access(in_chain->quickledger, reciever);
         int recipient_future_balance = 0;

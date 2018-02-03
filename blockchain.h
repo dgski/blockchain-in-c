@@ -28,6 +28,7 @@
 
 //Transaction structure
 typedef struct transaction {
+    int time_of;
     char sender[PUBLIC_ADDRESS_SIZE];
     char recipient[PUBLIC_ADDRESS_SIZE];
     int amount;
@@ -95,7 +96,7 @@ typedef struct alt_chain {
 //Chain functions
 blockchain* new_chain();
 int discard_chain(blockchain* in_chain);
-void new_transaction(blockchain* in_chain, char* in_sender, char* in_recipient, int in_amount,char* in_signature);
+void new_transaction(blockchain* in_chain, int time_of, char* in_sender, char* in_recipient, int in_amount, char* in_signature);
 void new_post(blockchain* in_chain, int time_of, char* in_sender, char in_data, char* in_signature);
 blink* append_current_block(blockchain* in_chain, long in_proof);
 blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int in_time, transaction* trans_list,
@@ -114,7 +115,8 @@ int validate_posts(blockchain* in_chain, post* new_post_array, int nr_of_posts);
 
 
 //Transaction functions
-char* string_trans_nosig(char* output, char* sender, char* receiver, int amount);
+//char* string_trans_nosig(char* output, char* sender, char* receiver, int amount);
+char* string_trans_nosig(char* output, int time_of, char* sender, char* reciever, int amount);
 int strip_pub_key(char* output, char* input);
 
 

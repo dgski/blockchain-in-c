@@ -182,10 +182,10 @@ void post_transaction(char* input) {
     strcat(out_msg, amount);
     */
 
-    sprintf(out_msg,"T %ld%c%s%c%s%c%s%c", time(NULL),seperator, asci_pub_key, seperator, recipient, seperator, amount, seperator);
+    sprintf(out_msg,"T %ld%c%s%c%s%c%010d%c", time(NULL),seperator, asci_pub_key, seperator, recipient, seperator, the_amount, seperator);
 
     char sig[513] = {0};
-    message_signature(sig,out_msg + 2,our_keys, pub_key);
+    message_signature(sig,out_msg + 2, our_keys, pub_key);
     //strcat(out_msg, seperator);
     strcat(out_msg,sig);
 
@@ -221,13 +221,13 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
 
     client_message_item* our_message = (client_message_item*)input->data;
 
-    printf("Sending to: %s, ",our_message->toWhom);
+    //printf("Sending to: %s, ",our_message->toWhom);
     if(nn_connect (sock_out, our_message->toWhom) < 0){
         printf("Connection Error.\n");
         nn_close(sock_out);
     }
     int bytes = nn_send (sock_out, our_message->message, strlen(our_message->message), 0);
-    printf("Bytes sent: %d\n", bytes);
+    //printf("Bytes sent: %d\n", bytes);
     usleep(100000);
     nn_close(sock_out);
 
