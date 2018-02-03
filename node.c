@@ -56,7 +56,6 @@ list* inbound_msg_queue; //holds recieved char* messages to execute
 
 //Sockets
 int sock_in;
-int sock_out;
 dict* out_sockets;
 
 
@@ -146,6 +145,9 @@ int mine() {
         if(DEBUG) {
             char buffer[120] = {0};
             fgets(buffer, sizeof(buffer), stdin);
+
+            if(buffer[0] == 'a')
+                graceful_shutdown(1);
         }
 
         //Generate creation transaction with signature
@@ -503,7 +505,7 @@ int save_chain_to_file(blockchain* in_chain, char* file_name) {
     blink* temp = in_chain->head;
 
     while(temp != NULL) {
-        
+        printf("%d ",temp->data.index);
         char block_to_write[BLOCK_STR_SIZE];
         string_block(block_to_write,&temp->data);
         strcat(block_to_write,"\n");
@@ -511,8 +513,10 @@ int save_chain_to_file(blockchain* in_chain, char* file_name) {
 
         temp = temp->next;
     }
+    printf("\n");
 
     fclose(chain_file);
+    printf("Done.\n");
 
     return 1;
 
@@ -532,6 +536,11 @@ int verify_file_block(const char* input, int* curr_index) {
     char* trans_size = strtok(NULL, ".");
     char* proof = strtok(NULL, ".");
     char* hash = strtok(NULL, ".");
+
+    if( atoi(index) != 0 && (index == NULL || time_gen == NULL || posts == NULL || 
+    posts_size == NULL || transactions == NULL || trans_size == NULL ||
+    proof == NULL || hash == NULL))
+        return 0;
 
     printf("Block with index %d recieved\n", atoi(index));
 
@@ -1086,9 +1095,9 @@ void graceful_shutdown(int dummy) {
     close_threads = 1;
     beaten = 2;
 
-    //pthread_join(inbound_executor_thread, NULL);
-    //pthread_join(outbound_network_thread, NULL);
-    //pthread_join(inbound_network_thread, NULL);
+    pthread_join(inbound_executor_thread, NULL);
+    pthread_join(outbound_network_thread, NULL);
+    pthread_join(inbound_network_thread, NULL);
 
     pthread_mutex_lock(&our_mutex);
     
@@ -1111,7 +1120,6 @@ void graceful_shutdown(int dummy) {
     destroy_keys(&our_keys, &pri_key, &pub_key);
 
     nn_close(sock_in);
-    nn_close(sock_out);
 
     pthread_mutex_unlock(&our_mutex);
 

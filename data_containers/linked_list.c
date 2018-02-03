@@ -113,29 +113,38 @@ li_node* li_remove_end(list* in_list)
 //Delete node from list and add links between previous and next nodes
 void li_delete_node(list* in_list, li_node* in_node) {
 
+    int debug = 0;
+
     if(in_node == NULL)
         return;
 
-    if(in_node->next == NULL && in_node->prev == NULL)
-        ;
+    if(in_node->next == NULL && in_node->prev == NULL) {
+        debug = 1;
+    }
 
-    if(in_node->next == NULL && in_node->prev != NULL)
+    if(in_node->next == NULL && in_node->prev != NULL) {
         in_node->prev->next = NULL;
+        debug = 2;
+    }
 
     if(in_node->prev == NULL && in_node->next != NULL) {
         in_node->next->prev = NULL;
         in_list->head = in_node->next;
+        debug = 3;
     }
 
     else if(in_node->prev != NULL & in_node->next != NULL) {
         in_node->prev->next = in_node->next;
         in_node->next->prev = in_node->prev;
+        debug = 4;
     }
 
-    in_list->length--;
-    if(in_list->length == 0) in_list->head = NULL;
-    free(in_node->data);
     free(in_node);
+    free(in_node->data);
+
+    in_list->length--;
+
+    if(in_list->length == 0) in_list->head = NULL;
 }
 
 //Print out list
@@ -256,12 +265,16 @@ void li_foreach(list* in_list, void* (*func)(list* in_list, li_node* input, void
     if(in_list->head == NULL || in_list->length == 0)
         return;
 
+    int count = 0;
+
     li_node* temp = in_list->head;
     while(temp != NULL) {
         
         li_node* next = temp->next;
  
         int to_delete = (int)(*func)(in_list, temp, data);
+
+        count++;
 
         if(next == NULL) return;
         temp = next;
