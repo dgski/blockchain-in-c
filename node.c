@@ -743,7 +743,7 @@ int prune_chains(bt_node* current_node) {
 
     alt_chain* the_chain = (alt_chain*)current_node->data;
 
-    if( time(NULL) - the_chain->last_time > 60 ) {
+    if( time(NULL) - the_chain->last_time > 20 ) {
         printf("Pruning chain with ID: '%s'\n", current_node->key);
         dict_del_elem(foreign_chains,current_node->key,0);
     }
