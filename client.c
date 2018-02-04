@@ -58,6 +58,31 @@ typedef struct client_message_item {
     int type;
 } client_message_item;
 
+typedef struct p_thing {
+    int status;
+    int amount;
+    dict* confirmed_by;
+} p_thing;
+
+p_thing* create_p_thing() {
+
+    p_thing* temp = malloc(sizeof(p_thing));
+    temp->amount = 0;
+    temp->status = -1;
+    temp->confirmed_by = dict_create();
+
+    return temp;
+}
+
+void destroy_p_thing(p_thing* in_thing) {
+
+    dict_discard(in_thing->confirmed_by);
+    free(in_thing);
+    return;
+}
+
+
+
 void setup_message(client_message_item* in_message) {
     in_message->status = -1;
     in_message->tries = 0;
@@ -128,7 +153,12 @@ int register_new_node(char* input) {
 
     if(input == NULL) return 0;
 
+    if(li_search(other_nodes, NULL, input, strlen(input) + 1) == NULL)
+        number_of_nodes++;
+ 
     li_append(other_nodes,input, strlen(input) + 1);
+    
+    
 
     return 1;
 
@@ -202,7 +232,11 @@ void post_post(char* input) {
     strcat(out_msg,sig);
 
     int status = -1;
-    dict_insert(posted_things,sig,&status, sizeof(status));
+
+    p_thing* new_post = create_p_thing();
+    new_post->amount = 1;
+
+    dict_insert(posted_things,sig,new_post, sizeof(*new_post));
 
     
     li_foreach(other_nodes,send_to_all, &out_msg);
@@ -246,8 +280,10 @@ void post_transaction(char* input) {
     //strcat(out_msg, seperator);
     strcat(out_msg,sig);
 
-    int status = -1;
-    dict_insert(posted_things,sig,&status, sizeof(status));
+    p_thing* new_trans = create_p_thing();
+    new_trans->amount = the_amount;
+
+    dict_insert(posted_things,sig,new_trans, sizeof(*new_trans));
 
     li_foreach(other_nodes,send_to_all, &out_msg);
 
@@ -299,11 +335,11 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
         li_delete_node(in_list, input);
 
         if(our_message->type == 1) {
-        int current_status = *((int*)dict_access(posted_things,our_message->sig));
+        int* current_status = &( ((p_thing*)dict_access(posted_things,our_message->sig))->status );
 
-        if(current_status == -1) {
-            int status = 0;
-            dict_insert(posted_things,our_message->sig,&status, sizeof(status));
+        if(*current_status == -1) {
+
+            *current_status = 0;
         }
         }
 
@@ -318,7 +354,7 @@ int check_on_unaccepted(bt_node* current_node) {
 
     if(current_node == NULL) return 0;
 
-    int value = *((int*)current_node->data);
+    int value = ( ((p_thing*)current_node->data)->status );
     if( value == -1 || (value >= (number_of_nodes / 2.0)) ) return 1;
 
     char out_msg[1500];
@@ -347,14 +383,14 @@ void* out_server() {
 
 int print_posts_trans(bt_node* current_node) {
 
-    int value = *((int*)current_node->data);
+    int value = ( ((p_thing*)current_node->data)->status );
 
-    printf("- '%.50s...' ",current_node->key);
+    printf("- '%.50s...'     %d     ",current_node->key, ((p_thing*)current_node->data)->amount );
     if( value == -1) printf("Unsent");
     else if( value == 0) printf("Sent");
     else if(value >= (number_of_nodes / 2.0)) printf("Accepted");
 
-    printf("    %d", value );
+    if(value > -1) printf("    %d / %d nodes", value, number_of_nodes );
     printf("\n");
 
     return 1;
@@ -372,9 +408,22 @@ void print_posted_items() {
 
 int trans_or_post_acceptance( char* input) {
 
-    int* current_status= (int*)dict_access(posted_things, input);
+    char thing_to_accept[513] ={0};
+    char foreign_node[300] ={0};
 
-    *current_status = *current_status + 1;
+    sscanf(input,"%s %s", thing_to_accept, foreign_node);
+
+    if(strlen(thing_to_accept) == 0 || strlen(foreign_node) == 0) return 0;
+
+    p_thing* current_thing = (p_thing*)dict_access(posted_things, thing_to_accept);
+
+    void* exists = dict_access(current_thing->confirmed_by,foreign_node);
+
+    if(exists == NULL) {
+        int a = 1;
+        dict_insert(current_thing->confirmed_by,foreign_node,&a,sizeof(a));
+        current_thing->status++;
+    }
 
     return 1;
 }

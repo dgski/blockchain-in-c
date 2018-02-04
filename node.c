@@ -957,7 +957,7 @@ int verify_acceptance_trans_or_post(const char* input) {
     printf("Checking acceptance of transaction...\n");
 
     char ip_address_out[300];
-    char signature[600];
+    char signature[513];
 
     sscanf(input,"%s %s", ip_address_out, signature);
 
@@ -972,6 +972,8 @@ int verify_acceptance_trans_or_post(const char* input) {
     strcpy(confirmation.toWhom, ip_address_out);
     strcpy(confirmation.message, "V ");
     strcat(confirmation.message, signature);
+    strcat(confirmation.message, " ");
+    strcat(confirmation.message, our_ip);
 
     li_append(outbound_msg_queue,&confirmation,sizeof(confirmation));
 
