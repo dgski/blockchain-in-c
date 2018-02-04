@@ -350,13 +350,13 @@ int insert_trans(const char* input) {
     char* amount = strtok(NULL, " ");
     char* signature = strtok(NULL, " ");
     
-    /*TEMPTEMP disabled
+    //TEMPTEMP disabled
     //Check if user has enough in quick ledger
     void* sender_balance = dict_access(our_chain->quickledger, sender);
     if(sender_balance == NULL || (int)sender_balance < atoi(amount)) {
         printf("Insufficient Funds.\n");
         return 0;
-    }*/
+    }
 
     char message_to_verify[MESSAGE_LENGTH];
     string_trans_nosig(message_to_verify, atoi(time_of),sender, recipient, atoi(amount));
@@ -412,7 +412,17 @@ int insert_post(const char* input) {
     // TEMP DISABLE FOR TESTING
     //Check if user has enough in quick ledger
     void* sender_balance = dict_access(our_chain->quickledger, sender);
-    if(sender_balance == NULL || (int)sender_balance < 1) {
+
+    if(sender_balance != NULL) printf("SENDER BALANCE: %d\n",(int)sender_balance );
+
+
+
+    if(sender_balance == NULL){
+        printf("No Funds For Post.\n");
+        return 0;
+    }
+
+    if((int)sender_balance < 1) {
         printf("Insufficient Funds For Post.\n");
         return 0;
     }

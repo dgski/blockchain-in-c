@@ -46,6 +46,8 @@ int sock_in;
 int sock_out;
 char our_ip[300];
 
+int last_check;
+
 
 
 //Message item structure
@@ -368,6 +370,7 @@ int check_on_unaccepted(bt_node* current_node) {
 
 //Outbound thread function - tried to send everything in outbound message queue
 void* out_server() {
+    last_check = time(NULL);
     while(true) {
         pthread_mutex_lock(&our_mutex);
         li_foreach(outbound_msg_queue, process_outbound, NULL);
@@ -375,7 +378,11 @@ void* out_server() {
             return NULL;
 
         //Check on un verified messages
-        dict_foreach(posted_things,check_on_unaccepted, NULL);        
+
+        if(time(NULL) - last_check > 10) {
+            dict_foreach(posted_things,check_on_unaccepted, NULL);
+            last_check = time(NULL);
+        }      
         pthread_mutex_unlock(&our_mutex);
         sleep(1);
     }
