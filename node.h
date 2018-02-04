@@ -29,6 +29,8 @@ int create_socket(const char* input);
 
 int destroy_sockets_in_dict(bt_node* current_node);
 
+int rare_socket(message_item* in_message);
+
 
 //Inbound thread
 int compare_length(const char* input);

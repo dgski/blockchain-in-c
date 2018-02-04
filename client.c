@@ -16,6 +16,7 @@
 #include "nanomsg/include/nn.h"
 #include "nanomsg/include/pipeline.h"
 #include "data_containers/linked_list.h"
+#include "data_containers/dict.h"
 #include "blockchain.h"
 
 //IDs
@@ -23,8 +24,6 @@ RSA* our_keys;
 char* pub_key;
 char* pri_key;
 char asci_pub_key[500] = {0};
-
-transaction_queue*  main_queue;
 
 //Threads
 pthread_t inbound_network_thread;
@@ -35,12 +34,17 @@ int close_threads;
 
 //Lists
 list* other_nodes;
+int number_of_nodes;
 list* outbound_msg_queue; //holds outbound message structs
 list* inbound_msg_queue; //holds recieved char* messages to execute
+
+//Dicts
+dict* posted_things;
 
 //Sockets
 int sock_in;
 int sock_out;
+char our_ip[300];
 
 
 
@@ -49,10 +53,12 @@ typedef struct client_message_item {
     char toWhom[300];
     char message[2000];
     unsigned int tries;
+    int status; //0 - unsent, 1 - sent, 2 - accepted
+    char sig[513];
 } client_message_item;
 
 void setup_message(client_message_item* in_message) {
-    
+    in_message->status = -1;
     in_message->tries = 0;
     memset(in_message->toWhom, 0, sizeof(in_message->toWhom));
     return;
@@ -97,6 +103,24 @@ bool val_trans_format(char* recipient, char* amount) {
     return true;
 }
 
+int get_signature(char* output, char* input) {
+
+    char our_message[5000];
+    strcpy(our_message, input);
+
+
+    char* our_sig;
+    char* temp = strtok(our_message," ");
+    while( (temp = strtok(NULL, " ")) != NULL) {
+        our_sig = temp;
+    }
+
+    strcpy(output,our_sig);
+    return 1;
+
+}
+
+
 //Send out post to everyone in other_nodes list
 void* send_to_all(list* in_list, li_node* in_item, void* data) {
     
@@ -116,8 +140,15 @@ void* send_to_all(list* in_list, li_node* in_item, void* data) {
    
     client_message_item announcement;
     setup_message(&announcement);
+
+    //Get signature
+    char output[513];
+    get_signature(output,out_msg);
+    //printf("GOT SIGNATURE: %s\n", output);
+
     strcpy(announcement.toWhom, data_string);
     strcpy(announcement.message, out_msg);
+    strcpy(announcement.sig, output);
 
     pthread_mutex_lock(&our_mutex);
     li_append(outbound_msg_queue,&announcement,sizeof(announcement));
@@ -148,8 +179,13 @@ void post_post(char* input) {
     message_signature(sig,out_msg + 2,our_keys,pub_key);
     //strcat(out_msg, seperator);
     strcat(out_msg,sig);
+
+    int status = -1;
+    dict_insert(posted_things,sig,&status, sizeof(status));
+
     
     li_foreach(other_nodes,send_to_all, &out_msg);
+    
 
     return;
 
@@ -189,7 +225,11 @@ void post_transaction(char* input) {
     //strcat(out_msg, seperator);
     strcat(out_msg,sig);
 
+    int status = -1;
+    dict_insert(posted_things,sig,&status, sizeof(status));
+
     li_foreach(other_nodes,send_to_all, &out_msg);
+
 
     return;
 }
@@ -199,11 +239,14 @@ int read_config2() {
     FILE* config = fopen("node.cfg", "r");
     if(config == NULL) return 0;
 
+    number_of_nodes = 0;
     char buffer[120] = {0};
     while (fgets(buffer, sizeof(buffer), config)) {
         if(buffer[strlen(buffer) -1] == '\n') buffer[strlen(buffer) -1] = 0;
         li_append(other_nodes, buffer, strlen(buffer) + 1);
+        number_of_nodes++;
     }
+    printf("NUMBER OF NODES: %d\n", number_of_nodes);
     fclose(config);
 
     return 0;
@@ -214,14 +257,14 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
 
     if(input == NULL) return NULL;
 
+    client_message_item* our_message = (client_message_item*)input->data;
+
     sock_out = nn_socket(AF_SP, NN_PUSH);
     assert (sock_out >= 0);
     int timeout = 100;
     assert (nn_setsockopt(sock_out, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
 
-    client_message_item* our_message = (client_message_item*)input->data;
-
-    //printf("Sending to: %s, ",our_message->toWhom);
+    //printf("Sending to: %s: '%.10s'",our_message->toWhom, our_message->message);
     if(nn_connect (sock_out, our_message->toWhom) < 0){
         printf("Connection Error.\n");
         nn_close(sock_out);
@@ -231,10 +274,37 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
     usleep(100000);
     nn_close(sock_out);
 
-    if(bytes > 0 || our_message->tries == 0) li_delete_node(in_list, input);
+    if(bytes > 0 || our_message->tries == 0){
+        li_delete_node(in_list, input);
+
+
+        int current_status = *((int*)dict_access(posted_things,our_message->sig));
+
+        if(current_status == -1) {
+            int status = 0;
+            dict_insert(posted_things,our_message->sig,&status, sizeof(status));
+        }
+
+    }
     else our_message->tries++;
 
     return NULL;
+}
+
+
+int check_on_unaccepted(bt_node* current_node) {
+
+    if(current_node == NULL) return 0;
+
+    int value = *((int*)current_node->data);
+    if( value == -1 || (value >= (number_of_nodes / 2.0)) ) return 1;
+
+    char out_msg[1500];
+    sprintf(out_msg,"V %s %s", our_ip, current_node->key);
+    li_foreach(other_nodes,send_to_all, &out_msg);
+
+    return 1;
+
 }
 
 
@@ -245,10 +315,92 @@ void* out_server() {
         li_foreach(outbound_msg_queue, process_outbound, NULL);
         if(close_threads)
             return NULL;
-        pthread_mutex_unlock(&our_mutex);
 
-        sleep(1);
+        //Check on un verified messages
+        dict_foreach(posted_things,check_on_unaccepted, NULL);        
+        pthread_mutex_unlock(&our_mutex);
     }
+}
+
+int print_posts_trans(bt_node* current_node) {
+
+    int value = *((int*)current_node->data);
+
+    printf("- '%.50s...' ",current_node->key);
+    if( value == -1) printf("Unsent");
+    else if( value == 0) printf("Sent");
+    else if(value >= (number_of_nodes / 2.0)) printf("Accepted");
+
+    printf("    %d", value );
+    printf("\n");
+
+    return 1;
+}
+
+
+void print_posted_items() {
+
+    printf("SENT OUT:\n");
+    printf("message & status\n");
+    printf("-----------------------------------------\n");
+    dict_foreach(posted_things, print_posts_trans, NULL);
+    return;
+}
+
+int trans_or_post_acceptance( char* input) {
+
+    int* current_status= (int*)dict_access(posted_things, input);
+
+    *current_status = *current_status + 1;
+
+    return 1;
+}
+
+void process_message(const char* in_msg) {
+
+
+    if(in_msg == NULL) return;
+
+    char to_process[30000] = {0};
+    strcpy(to_process, in_msg);
+
+    char* token = strtok(to_process," ");
+
+    if(!strcmp(token, "V"))
+        trans_or_post_acceptance(to_process + 2);
+
+    return;
+
+}
+
+void* in_server() {
+
+    sock_in = nn_socket (AF_SP, NN_PULL);
+    assert (sock_in >= 0);
+    assert (nn_bind (sock_in, our_ip) >= 0);
+    int timeout = 500;
+    assert (nn_setsockopt (sock_in, NN_SOL_SOCKET, NN_RCVTIMEO, &timeout, sizeof (timeout)) >= 0);
+
+    printf("Inbound Socket Ready!\n");
+
+    char buf[30000];
+
+    while(true) {
+        int bytes = nn_recv(sock_in, buf, sizeof(buf), 0);
+        
+        pthread_mutex_lock(&our_mutex);
+        if(bytes > 0) {
+            buf[bytes] = 0;
+            printf("\nRecieved %d bytes: \"%s\"\n", bytes, buf);
+                process_message(buf);
+        }
+
+        if(close_threads)
+                return 0;
+        pthread_mutex_unlock(&our_mutex);            
+
+    }
+    return 0;
 }
 
 
@@ -258,10 +410,14 @@ int main(void) {
     //Setup
     printf("Blockchain in C: Client v0.1 by DG\n'h' for help/commandlist\n");
     char buffer[120] = {0};
-    main_queue = new_queue();
+
     other_nodes = list_create();
     outbound_msg_queue = list_create();
     inbound_msg_queue = list_create();
+
+    posted_things = dict_create();
+
+    strcpy(our_ip, "ipc:///tmp/pipeline_001.ipc");
 
     //read_config();
     read_config2();
@@ -298,6 +454,7 @@ int main(void) {
     //Threads
     pthread_mutex_t our_mutex = PTHREAD_MUTEX_INITIALIZER;
     pthread_create(&outbound_network_thread, NULL, out_server, NULL);
+    pthread_create(&inbound_network_thread, NULL, in_server, NULL);
     close_threads = 0;
 
     //Wait for command
@@ -313,7 +470,7 @@ int main(void) {
             quit_program();
 
         else if( !strcmp("t", buffer) )
-            queue_print(main_queue);
+            print_posted_items();
         else if(buffer[0] == 'n')
             post_transaction(buffer);
         else if(buffer[0] == 'p')

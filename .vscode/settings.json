@@ -31,6 +31,16 @@
         "iosfwd": "c",
         "linked_list.h": "c",
         "__functional_03": "c",
-        "functional": "c"
+        "functional": "c",
+        "__functional_base": "c",
+        "algorithm": "c",
+        "atomic": "c",
+        "chrono": "c",
+        "limits": "c",
+        "locale": "c",
+        "ratio": "c",
+        "system_error": "c",
+        "tuple": "c",
+        "type_traits": "c"
     }
 }

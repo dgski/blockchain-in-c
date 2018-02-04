@@ -940,6 +940,8 @@ void process_message(const char* in_msg) {
 
 int verify_acceptance_trans_or_post(const char* input) {
 
+    printf("Checking acceptance of transaction...\n");
+
     char ip_address_out[300];
     char signature[600];
 
@@ -955,10 +957,9 @@ int verify_acceptance_trans_or_post(const char* input) {
     setup_message(&confirmation);
     strcpy(confirmation.toWhom, ip_address_out);
     strcpy(confirmation.message, "V ");
-    strcat(confirmation.message, ip_address_out);
+    strcat(confirmation.message, signature);
 
     li_append(outbound_msg_queue,&confirmation,sizeof(confirmation));
-    pthread_mutex_unlock(&our_mutex);
 
     return 1;
 
@@ -1076,6 +1077,24 @@ void* out_message_sep(void* in_data) {
 
 }*/
 
+int rare_socket(message_item* in_message) {
+
+    int sock_here = nn_socket(AF_SP, NN_PUSH);
+    assert (sock_here >= 0);
+    int timeout = 100;
+    assert (nn_setsockopt(sock_here, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
+
+    //printf("Sending to: %s: '%.10s'",our_message->toWhom, our_message->message);
+    if(nn_connect (sock_here, in_message->toWhom) < 0){
+        printf("Connection Error.\n");
+        nn_close(sock_here);
+    }
+
+    return sock_here;
+}
+
+
+
 //Done to each message in 'outbound_msg_queue'. input is of type message_item struct
 void* process_outbound(list* in_list, li_node* input, void* data) {
 
@@ -1096,15 +1115,30 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
     message_item* our_message = (message_item*)input->data;
     socket_item* sock_out_to_use = (socket_item*)dict_access(out_sockets,our_message->toWhom);
 
-    if(sock_out_to_use == NULL) return NULL;
+    int the_socket;
+    int used_rare_socket = 0;
+
+    if(sock_out_to_use == NULL) {
+        the_socket = rare_socket(our_message);
+        used_rare_socket = 1;
+    }
+    else {
+        the_socket = sock_out_to_use->socket;
+    }
+
 
     printf("Sending to: %s, ",our_message->toWhom);
-    int bytes = nn_send (sock_out_to_use->socket, our_message->message, strlen(our_message->message), 0);
+    int bytes = nn_send (the_socket, our_message->message, strlen(our_message->message), 0);
     printf("Bytes sent: %d\n", bytes);
-    sock_out_to_use->last_used = time(NULL);
 
-    //Update socket usage time
+    if(used_rare_socket) {
+        usleep(100000);
+        nn_close(the_socket);
+    }
+    else {
+    sock_out_to_use->last_used = time(NULL);
     dict_insert(out_sockets,our_message->toWhom,sock_out_to_use,sizeof(*sock_out_to_use));
+    }
 
     //Try three times
     if(bytes > 0 || our_message->tries == 2) li_delete_node(in_list, input);
