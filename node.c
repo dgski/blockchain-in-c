@@ -57,6 +57,7 @@ list* inbound_msg_queue; //holds recieved char* messages to execute
 //Sockets
 int sock_in;
 dict* out_sockets;
+int last_ping;
 
 
 
@@ -477,7 +478,15 @@ void register_new_node(const char* input) {
     
     printf("Registering New Node...");
     if(li_search(other_nodes,NULL,add_who,strlen(add_who) + 1)) {
-        printf(" Already registered. ");
+        printf(" Already registered. Updating Last Used Time.\n");
+
+        socket_item* our_socket = (socket_item*)dict_access(out_sockets,add_who);
+
+        if(our_socket != NULL) {
+            our_socket->last_used = time(NULL);
+        }
+
+
     }
     else {
         //Add to our list
@@ -935,6 +944,8 @@ void process_message(const char* in_msg) {
         send_our_chain(to_process + 2);
     if(!strcmp(token, "V"))
         verify_acceptance_trans_or_post(to_process + 2);
+    if(!strcmp(token, "I"))
+        client_existance_announcement(to_process + 2);
 
 }
 
@@ -963,6 +974,29 @@ int verify_acceptance_trans_or_post(const char* input) {
 
     return 1;
 
+}
+
+int ping_function() {
+
+    if(time(NULL) - last_ping > 60) {
+        printf("Pinging Nodes in List...\n");
+        li_foreach(other_nodes,announce_existance, NULL);
+        last_ping = time(NULL);
+    }
+
+    return 1;
+}
+
+
+int client_existance_announcement(const char* input) {
+
+    if(input == NULL) return 0;
+
+    char ip_address_out[300];
+    strcpy(ip_address_out,input);
+    
+    li_foreach(other_nodes, send_node_list_to, ip_address_out);
+    return 1;
 }
 
 //Inbound thread function - receives messages and adds them to execution queue
@@ -1039,6 +1073,7 @@ void* out_server() {
     while(true) {
         pthread_mutex_lock(&our_mutex);
         li_foreach(outbound_msg_queue, process_outbound, NULL);
+        ping_function();
         if(close_threads)
             return NULL;
         pthread_mutex_unlock(&our_mutex);
@@ -1134,10 +1169,6 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
     if(used_rare_socket) {
         usleep(100000);
         nn_close(the_socket);
-    }
-    else {
-    sock_out_to_use->last_used = time(NULL);
-    dict_insert(out_sockets,our_message->toWhom,sock_out_to_use,sizeof(*sock_out_to_use));
     }
 
     //Try three times
@@ -1439,6 +1470,7 @@ int main(int argc, char* argv[]) {
 
     //Send out our existence
     li_foreach(other_nodes,announce_existance, NULL);
+    last_ping = time(NULL);
 
     //Reset node earnings
     node_earnings = 0;

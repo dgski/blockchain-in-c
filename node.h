@@ -38,6 +38,7 @@ int verify_foreign_block(const char* input);
 int request_chain(const char* address);
 int send_our_chain(const char* address);
 int save_chain_to_file(blockchain* in_chain, char* file_name);
+int client_existance_announcement(const char* input);
 
 //Workers
 void* in_server();
@@ -53,6 +54,7 @@ void* announce_existance(list* in_list, li_node* in_item, void* data);
 void* announce_message(list* in_list, li_node* in_item, void* data);
 
 
+
 int insert_trans(const char* input);
 int insert_post(const char* input);
 void register_new_node(const char* input);
@@ -66,6 +68,8 @@ void graceful_shutdown(int dummy);
 void setup_message(message_item* in_message);
 int print_balance(bt_node* current_node);
 int print_keys(bt_node* current_node);
+
+int ping_function();
 
 
 

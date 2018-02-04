@@ -55,11 +55,13 @@ typedef struct client_message_item {
     unsigned int tries;
     int status; //0 - unsent, 1 - sent, 2 - accepted
     char sig[513];
+    int type;
 } client_message_item;
 
 void setup_message(client_message_item* in_message) {
     in_message->status = -1;
     in_message->tries = 0;
+    in_message->type = -1;
     memset(in_message->toWhom, 0, sizeof(in_message->toWhom));
     return;
 }
@@ -108,14 +110,26 @@ int get_signature(char* output, char* input) {
     char our_message[5000];
     strcpy(our_message, input);
 
-
+    int counter = 0;
     char* our_sig;
     char* temp = strtok(our_message," ");
     while( (temp = strtok(NULL, " ")) != NULL) {
         our_sig = temp;
+        counter++;
     }
-
+    if(counter < 4) return 0;
     strcpy(output,our_sig);
+    return 1;
+
+}
+
+int register_new_node(char* input) {
+
+
+    if(input == NULL) return 0;
+
+    li_append(other_nodes,input, strlen(input) + 1);
+
     return 1;
 
 }
@@ -143,12 +157,19 @@ void* send_to_all(list* in_list, li_node* in_item, void* data) {
 
     //Get signature
     char output[513];
-    get_signature(output,out_msg);
+    int ret = get_signature(output,out_msg);
     //printf("GOT SIGNATURE: %s\n", output);
 
     strcpy(announcement.toWhom, data_string);
     strcpy(announcement.message, out_msg);
-    strcpy(announcement.sig, output);
+    
+    if(ret != 0) {
+        strcpy(announcement.sig, output);
+        announcement.type = 1;
+    }
+    else {
+        announcement.type = 0;
+    }
 
     pthread_mutex_lock(&our_mutex);
     li_append(outbound_msg_queue,&announcement,sizeof(announcement));
@@ -277,12 +298,13 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
     if(bytes > 0 || our_message->tries == 0){
         li_delete_node(in_list, input);
 
-
+        if(our_message->type == 1) {
         int current_status = *((int*)dict_access(posted_things,our_message->sig));
 
         if(current_status == -1) {
             int status = 0;
             dict_insert(posted_things,our_message->sig,&status, sizeof(status));
+        }
         }
 
     }
@@ -319,6 +341,7 @@ void* out_server() {
         //Check on un verified messages
         dict_foreach(posted_things,check_on_unaccepted, NULL);        
         pthread_mutex_unlock(&our_mutex);
+        sleep(1);
     }
 }
 
@@ -368,6 +391,8 @@ void process_message(const char* in_msg) {
 
     if(!strcmp(token, "V"))
         trans_or_post_acceptance(to_process + 2);
+    else if(!strcmp(token, "N"))
+        register_new_node(to_process + 2);
 
     return;
 
@@ -381,7 +406,7 @@ void* in_server() {
     int timeout = 500;
     assert (nn_setsockopt (sock_in, NN_SOL_SOCKET, NN_RCVTIMEO, &timeout, sizeof (timeout)) >= 0);
 
-    printf("Inbound Socket Ready!\n");
+    //printf("Inbound Socket Ready!\n");
 
     char buf[30000];
 
@@ -405,6 +430,7 @@ void* in_server() {
 
 
 
+
 int main(void) {
     
     //Setup
@@ -418,6 +444,7 @@ int main(void) {
     posted_things = dict_create();
 
     strcpy(our_ip, "ipc:///tmp/pipeline_001.ipc");
+
 
     //read_config();
     read_config2();
@@ -456,6 +483,10 @@ int main(void) {
     pthread_create(&outbound_network_thread, NULL, out_server, NULL);
     pthread_create(&inbound_network_thread, NULL, in_server, NULL);
     close_threads = 0;
+
+    char ip_announcement[500];
+    sprintf(ip_announcement,"I %s", our_ip);
+    li_foreach(other_nodes,send_to_all, &ip_announcement);
 
     //Wait for command
     while(true) {
