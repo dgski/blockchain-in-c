@@ -48,6 +48,9 @@ pthread_t inbound_executor_thread;
 pthread_mutex_t our_mutex;
 int close_threads;
 
+pthread_t outbound_msgs[10000];
+int out_index = 0;
+
 //Lists
 list* other_nodes;
 list* outbound_msg_queue; //holds outbound message structs
@@ -1072,7 +1075,11 @@ void* process_inbound(list* in_list, li_node* input, void* data) {
 void* out_server() {
     while(true) {
         pthread_mutex_lock(&our_mutex);
-        li_foreach(outbound_msg_queue, process_outbound, NULL);
+
+        pthread_mutex_t message_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+
+        li_foreach(outbound_msg_queue, process_outbound, &message_mutex);
         ping_function();
         if(close_threads)
             return NULL;
@@ -1081,13 +1088,18 @@ void* out_server() {
         usleep(1000);
     }
 }
+
 /*
 void* out_message_sep(void* in_data) {
+
+    //printf("MESSAGE: %s\n", (char*)in_data);
 
     list_and_node_combo* the_combo = (list_and_node_combo*)in_data;
 
     li_node* input = (li_node*)the_combo->the_node;
     list* in_list = (list*)the_combo->the_list;
+    pthread_mutex_t* the_mutex = (pthread_mutex_t*)the_combo->the_data;
+
 
     message_item* our_message = (message_item*)input->data;
     socket_item* sock_out_to_use = (socket_item*)dict_access(out_sockets,our_message->toWhom);
@@ -1099,14 +1111,17 @@ void* out_message_sep(void* in_data) {
     printf("Bytes sent: %d\n", bytes);
     sock_out_to_use->last_used = time(NULL);
 
+    pthread_mutex_lock(the_mutex);
     //Update socket usage time
     dict_insert(out_sockets,our_message->toWhom,sock_out_to_use,sizeof(*sock_out_to_use));
 
     //Try three times
     if(bytes > 0 || our_message->tries == 2) li_delete_node(in_list, input);
     else our_message->tries++;
+    pthread_mutex_unlock(the_mutex);
 
-    free(in_data);
+
+    //free(in_data);
 
     return NULL;
 
@@ -1134,7 +1149,7 @@ int rare_socket(message_item* in_message) {
 void* process_outbound(list* in_list, li_node* input, void* data) {
 
     if(input == NULL) return NULL;
-
+    
     /*
     list_and_node_combo* the_combo = malloc(sizeof(list_and_node_combo));
     the_combo->the_list = in_list;
@@ -1142,10 +1157,16 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
     the_combo->the_data = data;
 
     pthread_t new_thread;
-    pthread_create(&new_thread,NULL,out_message_sep, &the_combo);
+    //&(outbound_msgs[out_index++])
+
+    //char* new_string = malloc(100);
+    //strcpy(new_string,"HELLO!!!!!");
+    
+    pthread_create(&(outbound_msgs[out_index++]),NULL,out_message_sep, the_combo);
 
     return NULL;
     */
+
 
     message_item* our_message = (message_item*)input->data;
     socket_item* sock_out_to_use = (socket_item*)dict_access(out_sockets,our_message->toWhom);
