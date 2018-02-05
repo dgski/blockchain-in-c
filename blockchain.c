@@ -476,6 +476,9 @@ int extract_transactions_raw(transaction* trans_array, char* input_trans_string)
     int i = 1;
     while(pointer != NULL) {
         pointer = strtok(NULL,"-");
+
+        if(pointer == NULL) break;
+
         trans_strings[i++] = pointer;
     }
 
@@ -487,13 +490,27 @@ int extract_transactions_raw(transaction* trans_array, char* input_trans_string)
 
     for(int i = 0; trans_strings[i] != 0; i++) {
 
+        printf("TRANSACTION #%d:\n", i);
         time_of = strtok(trans_strings[i],":");
         sender = strtok(NULL, ":");
         reciever = strtok(NULL, ":");
         amount = strtok(NULL, ":");
         signature = strtok(NULL, ":");
 
-        char output[5000] = {0};
+
+        if(time_of == NULL || sender == NULL || reciever == NULL || amount == NULL || signature == NULL) {
+            printf("RETURNING ZERO!\n");
+            return 0;
+
+        }
+        
+        printf("time_of: %s", time_of);
+        printf("sender: %s\n", sender);
+        printf("reciever: %s\n", reciever);
+        printf("amount: %s\n", amount);
+        printf("signature: %s\n", signature);
+
+        char output[10000] = {0};
         string_trans_nosig(output,atoi(time_of),sender,reciever,atoi(amount));
 
         trans_array[i].time_of = atoi(time_of);

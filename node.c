@@ -184,7 +184,6 @@ int mine() {
             printf("\nMINED: %.4f min(s)\n", (time_2 - time_1)/60.0);
 
             our_chain->last_proof_of_work = result;
-
             blink* a_block = append_current_block(our_chain, our_chain->last_proof_of_work);
             print_block(a_block,'-');
 
@@ -199,6 +198,7 @@ int mine() {
             memset(our_chain->trans_list,0, sizeof(our_chain->trans_list));
             our_chain->trans_index = 0;
             beaten = 0;
+
         }
 
         //Program is closing
@@ -207,6 +207,7 @@ int mine() {
         }
 
         //Access our earnings from the quickledger library
+
         int our_earnings = 0;
         void* our_ledger_earnings = dict_access(our_chain->quickledger,stripped_pub_key);
         if(our_ledger_earnings != NULL)
@@ -218,6 +219,7 @@ int mine() {
         printf("\nTotal Node Earnings: %d noins\n", our_earnings);
         printf("Total Currency in Circulation: %d noins\n", our_chain->total_currency);
         printf("Verified Transactions: %d\n\n", our_chain->verified->size);
+
 
 
     }
@@ -272,9 +274,7 @@ void* announce_existance(list* in_list, li_node* in_item, void* data) {
     strcpy(announcement.message, "N ");
     strcat(announcement.message, our_ip);
 
-    pthread_mutex_lock(&our_mutex);
     li_append(outbound_msg_queue,&announcement,sizeof(announcement));
-    pthread_mutex_unlock(&our_mutex);
 
     return NULL;
 }
@@ -815,6 +815,25 @@ int verify_foreign_block(const char* input) {
     char* trans_size = strtok(NULL, ".");
     char* proof = strtok(NULL, ".");
     char* hash = strtok(NULL, ".");
+    
+    /*
+    if(chain_id == NULL || exp_length == NULL || index == NULL || time_gen == NULL ||
+    posts == NULL || posts_size == NULL || transactions == NULL || trans_size == NULL ||
+    proof == NULL || hash == NULL)
+        return 0;
+
+    printf("chain_id: %s\n", chain_id);
+    printf("exp_length: %s\n", exp_length);
+    printf("index: %s\n", index);
+    printf("time_gen: %s\n", time_gen);
+    printf("posts: %s\n", posts);
+    printf("posts_size: %s\n", posts_size);
+    printf("transactions: %s\n", transactions);
+    printf("trans_size: %s\n", trans_size);
+    printf("proof: %s\n", proof);
+    printf("hash: %s\n", hash);
+    */
+
 
     printf("Block of %s with index %d recieved\n", chain_id, atoi(index));
 
@@ -864,7 +883,8 @@ int verify_foreign_block(const char* input) {
     char trans_hash[HASH_HEX_SIZE];
     transaction new_trans_array[20] = {0};
 
-    extract_transactions_raw(new_trans_array,transactions);
+    int ret = extract_transactions_raw(new_trans_array,transactions);
+    if(!ret) return 0;
 
     post new_post_array[BLOCK_DATA_SIZE] = {0};
     int nr_of_posts = extract_posts_raw(new_post_array,posts);
@@ -995,7 +1015,10 @@ int ping_function() {
 
     if(time(NULL) - last_ping > 60) {
         printf("Pinging Nodes in List...\n");
+        pthread_mutex_lock(&our_mutex);
         li_foreach(other_nodes,announce_existance, NULL);
+        pthread_mutex_unlock(&our_mutex);
+
         last_ping = time(NULL);
     }
 
@@ -1092,6 +1115,7 @@ void* out_server() {
 
 
         li_foreach(outbound_msg_queue, process_outbound, &message_mutex);
+
         ping_function();
         if(close_threads)
             return NULL;
