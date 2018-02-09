@@ -1019,7 +1019,10 @@ blink* blink_create()
     temp->data.index = 0;
     temp->data.time = time(NULL);
     temp->data.proof = 0;
+    temp->data.posts_list_length = 0;
+    temp->data.trans_list_length = 0;
     memset(temp->data.trans_list,0,sizeof(temp->data.trans_list));
+    memset(temp->data.posts,0, sizeof(temp->data.posts));
     memset(temp->data.previous_hash, 0, HASH_HEX_SIZE);
     temp->next = NULL;
     return temp;
@@ -1109,6 +1112,8 @@ void blink_discard_list(blink* head)
         if(temp != NULL)
             temp = temp->next;
     }
+
+    head = NULL;
 }
 
 

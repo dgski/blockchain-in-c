@@ -99,9 +99,11 @@ void* print_queue(void* input) {
 
 }
 
-//Empty message
+//Empty message struct
 void setup_message(message_item* in_message) {
     
+    if(in_message == NULL) return;
+
     in_message->tries = 0;
     memset(in_message->toWhom, 0, sizeof(in_message->toWhom));
     return;
@@ -110,7 +112,7 @@ void setup_message(message_item* in_message) {
 //Frees memory of all chains in a dict
 int destroy_chains_in_dict(bt_node* current_node) {
 
-    if(current_node == NULL) return 0;
+    if(current_node == NULL || current_node->data == NULL) return 0;
 
     alt_chain* to_destroy = (alt_chain*)current_node->data;
     discard_chain(to_destroy->the_chain);
@@ -178,6 +180,8 @@ int mine() {
         result = proof_of_work(&beaten,our_chain->last_hash, our_chain->trans_hash);
         unsigned int time_2 = time(NULL);
 
+        pthread_mutex_lock(&our_mutex);
+
         //Found necessary proof of work
         if(result > 0) {
             printf(ANSI_COLOR_GREEN);
@@ -220,7 +224,7 @@ int mine() {
         printf("Total Currency in Circulation: %d noins\n", our_chain->total_currency);
         printf("Verified Transactions: %d\n\n", our_chain->verified->size);
 
-
+        pthread_mutex_unlock(&our_mutex);
 
     }
 }
@@ -248,9 +252,7 @@ void* announce_length(list* in_list, li_node* in_item, void* data) {
     strcpy(chain_send.toWhom, data_string);
     strcpy(chain_send.message, message);
 
-    pthread_mutex_lock(&our_mutex);
     li_append(outbound_msg_queue,&chain_send, sizeof(chain_send));
-    pthread_mutex_unlock(&our_mutex);
 
     return NULL;
 }
@@ -298,9 +300,7 @@ void* announce_message(list* in_list, li_node* in_item, void* data) {
     strcpy(announcement.toWhom, data_string);
     strcpy(announcement.message, out_message);
 
-    pthread_mutex_lock(&our_mutex);
     li_append(outbound_msg_queue,&announcement,sizeof(announcement));
-    pthread_mutex_unlock(&our_mutex);
 
     return NULL;
 
@@ -329,9 +329,7 @@ void* send_node_list_to(list* in_list, li_node* in_item, void* data) {
     strcpy(announcement.toWhom, out_dest);
     strcpy(announcement.message, outbound_msg);
 
-    pthread_mutex_lock(&our_mutex);
     li_append(outbound_msg_queue,&announcement,sizeof(announcement));
-    pthread_mutex_unlock(&our_mutex);
 
     return NULL;
 }
@@ -365,24 +363,14 @@ int insert_trans(const char* input) {
     if(!verify_message(message_to_verify, sender, signature))
         return 0;
 
-
-    /*
-    if(!verify_signiture(buffer,sender, recipient, amount, signature))
-        return 0;
-    */
-
     printf("\nInserting.\n");
 
-    int amount_int;
-    sscanf(amount,"%d",&amount_int);
-
-    new_transaction(our_chain, atoi(time_of) ,sender,recipient,amount_int,signature);
-
-    printf("AFTER ADDING: %s\n", our_chain->trans_list[0].signature);
+    new_transaction(our_chain, atoi(time_of) ,sender,recipient,atoi(amount),signature);
 
     return 1;
 }
 
+//Verify the format of the post: Should be one 'letter'
 int verify_post_format(const char* post) {
     
     if(post == NULL || strlen(post) > 1) return 0;
@@ -396,26 +384,21 @@ int verify_post_format(const char* post) {
 //Insert [post] [sender post]
 int insert_post(const char* input) {
 
+    printf("\nVerifying Post...");
+
     char time_of[20] = {0};
     char sender[1000] = {0};
     char music[5] = {0};
     char signature[513] = {0};
     sscanf(input, "%s %s %s %s", time_of, sender, music, signature);
 
-    printf("%s, LENGTH OF: %lu\n", music, strlen(music));
-
     if(!verify_post_format(music)) {
         printf("Music Format Invalid.");
         return 0;
     }
 
-    // TEMP DISABLE FOR TESTING
     //Check if user has enough in quick ledger
     void* sender_balance = dict_access(our_chain->quickledger, sender);
-
-    if(sender_balance != NULL) printf("SENDER BALANCE: %d\n",(int)sender_balance );
-
-
 
     if(sender_balance == NULL){
         printf("No Funds For Post.\n");
@@ -423,17 +406,15 @@ int insert_post(const char* input) {
     }
 
     if((int)sender_balance < 1) {
-        printf("Insufficient Funds For Post.\n");
+        printf("Insufficient Funds For Post (%d).\n", (int)sender_balance);
         return 0;
     }
 
     char data = music[0];
-    printf("NOTE TO ADD: '%c'\n", data);
+    printf("Note to Add: '%c'\n", data);
 
-    char message[2000];
+    char message[3000];
     sprintf(message, "%s %s %s ", time_of, sender, music);
-
-    printf("MESSAGE TO VERIFY: '%s'\n", message);
 
     if(!verify_message(message, sender,signature)) {
         printf("Post invalid!\n");
@@ -445,7 +426,10 @@ int insert_post(const char* input) {
     return 1;
 }
 
+//Create a socket to be used for the given address
 int create_socket(const char* input) {
+
+    if(strlen(input) > 299) return 0;
 
     char address[SHORT_MESSAGE_LENGTH];
     strcpy(address, input);
@@ -457,9 +441,9 @@ int create_socket(const char* input) {
     new_out_socket.last_used = time(NULL);
 
     new_out_socket.socket = nn_socket(AF_SP, NN_PUSH);
-    assert (new_out_socket.socket >= 0);
+    if(new_out_socket.socket < 0) return 0;
     int timeout = 50;
-    assert (nn_setsockopt(new_out_socket.socket, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) >= 0);
+    if(nn_setsockopt(new_out_socket.socket, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) < 0) return 0;
 
     if(nn_connect (new_out_socket.socket, address) < 0){
         printf("Connection Error.\n");
@@ -468,25 +452,25 @@ int create_socket(const char* input) {
     
     dict_insert(out_sockets,address,&new_out_socket,sizeof(new_out_socket));
 
-    return 0;
+    return 1;
 }
 
 //Regster New Node and send out your chain length
-void register_new_node(const char* input) {
+int register_new_node(const char* input) {
 
-    if(input == NULL) return;
+    if(input == NULL) return 0;
 
     if(!strcmp(input, our_ip)) {
         printf("Someone is propagating us. Word is spreading.\n");
-        return;
+        return 1;
     }
 
     if(strlen(input) > SHORT_MESSAGE_LENGTH) {
         printf("IP address too long to register!");
-        return;
+        return 0;
     }
 
-    char add_who[SHORT_MESSAGE_LENGTH];
+    char add_who[SHORT_MESSAGE_LENGTH] = {0};
     strcpy(add_who,input);
     
     printf("Registering New Node...");
@@ -506,11 +490,11 @@ void register_new_node(const char* input) {
         li_append(other_nodes, add_who, strlen(add_who) + 1);
 
         //Create socket
-        create_socket(input);
+        create_socket(add_who);
 
         //Propagate
         printf("Added '%s' ... Propgating.\n", add_who);
-        char mess_to_prop[400];
+        char mess_to_prop[400] = {0};
         sprintf(mess_to_prop,"N %s", add_who);
         li_foreach(other_nodes, announce_message,mess_to_prop); //Send out to all other nodes registered
 
@@ -526,15 +510,19 @@ void register_new_node(const char* input) {
 
     message_item chain_send;
     setup_message(&chain_send);
-    strcpy(chain_send.toWhom, input);
+    strcpy(chain_send.toWhom, add_who);
     strcpy(chain_send.message, message);
     
     li_append(outbound_msg_queue,&chain_send, sizeof(chain_send));
+
+    return 1;
 
 }
 
 //Save our chain in .noins format
 int save_chain_to_file(blockchain* in_chain, char* file_name) {
+
+    if(in_chain == NULL || file_name == NULL) return 0;
 
     printf("Saving our chain to file: '%s'\n", file_name);
     FILE* chain_file = fopen(file_name, "w"); //blockchain_file name
@@ -552,7 +540,6 @@ int save_chain_to_file(blockchain* in_chain, char* file_name) {
         temp = temp->next;
     }
     printf("\n");
-
     fclose(chain_file);
     printf("Done.\n");
 
@@ -698,7 +685,7 @@ int request_chain(const char* address) {
     
     li_append(outbound_msg_queue,&request_chain, sizeof(request_chain));
 
-    return 0;
+    return 1;
 
 }
 
@@ -711,7 +698,7 @@ int compare_length(const char* input) {
 
     printf("Checking foreign chain length... ");
     unsigned int foreign_length;
-    char Whom[300];
+    char Whom[300] = {0};
     sscanf(input, "%d %s", &foreign_length, Whom);
 
     if(foreign_length > our_chain->length) {
@@ -767,20 +754,23 @@ int send_our_chain(const char* address) {
     return 1;
 }
 
+//Remove chains that have no been used for a minute: They're old now
 int prune_chains(bt_node* current_node) {
 
     if(current_node == NULL || current_node->data == NULL) return 0;
 
     alt_chain* the_chain = (alt_chain*)current_node->data;
 
-    if( time(NULL) - the_chain->last_time > 20 ) {
+    if( time(NULL) - the_chain->last_time > 60 ) {
         printf("Pruning chain with ID: '%s'\n", current_node->key);
+        discard_chain(the_chain->the_chain);
         dict_del_elem(foreign_chains,current_node->key,0);
     }
 
     return 1;
 }
 
+//Remove Sockets that have not been used for 600 seconds: They're old now
 int prune_sockets(bt_node* current_node) {
 
     if(current_node == NULL || current_node->data == NULL) return 0;
@@ -797,7 +787,6 @@ int prune_sockets(bt_node* current_node) {
 
     return 1;
 }
-
 
 
 int verify_foreign_block(const char* input) {
@@ -908,7 +897,6 @@ int verify_foreign_block(const char* input) {
         }
         printf("Valid.\n");
 
-
         
         //Add block
         blink* a_block = append_new_block(this_chain->the_chain, atoi(index), atoi(time_gen),rec_trans, new_post_array, atoi(trans_size), atoi(posts_size), the_proof);
@@ -930,13 +918,14 @@ int verify_foreign_block(const char* input) {
 
                 discard_chain(our_chain);
                 our_chain = this_chain->the_chain;
-                dict_del_elem(foreign_chains,chain_id,1);
+                dict_del_elem(foreign_chains,chain_id,0);
             
                 beaten = 1;
             }
             else {
                 printf("Received end of chain. Not longer. Throwing away.\n");
-                dict_del_elem(foreign_chains,chain_id,1);
+                discard_chain(this_chain->the_chain);
+                dict_del_elem(foreign_chains,chain_id,0);
             }
 
             printf("\nFOREIGN DICT SIZE %d:\n", foreign_chains->size);
@@ -948,8 +937,9 @@ int verify_foreign_block(const char* input) {
     else {
         printf("Invalid.\n");
     }
-
+    
     return 0;
+    
 }  
 
 
@@ -982,6 +972,7 @@ void process_message(const char* in_msg) {
 
 }
 
+//Check whether the given signaure exists in your verified dictionary
 int verify_acceptance_trans_or_post(const char* input) {
 
     printf("Checking acceptance of transaction...\n");
@@ -993,10 +984,10 @@ int verify_acceptance_trans_or_post(const char* input) {
 
     void* entry= dict_access(our_chain->verified,signature);
 
-    //Reply that transaction is included in our chain
     if(entry == NULL)
         return 0;
 
+    //Reply that transaction is included in our chain
     message_item confirmation;
     setup_message(&confirmation);
     strcpy(confirmation.toWhom, ip_address_out);
@@ -1011,21 +1002,19 @@ int verify_acceptance_trans_or_post(const char* input) {
 
 }
 
+//Send out a ping to all other nodes every 30 seconds 
 int ping_function() {
 
-    if(time(NULL) - last_ping > 60) {
+    if(time(NULL) - last_ping > 30) {
         printf("Pinging Nodes in List...\n");
-        pthread_mutex_lock(&our_mutex);
         li_foreach(other_nodes,announce_existance, NULL);
-        pthread_mutex_unlock(&our_mutex);
-
         last_ping = time(NULL);
     }
 
     return 1;
 }
 
-
+//Send node list to this client
 int client_existance_announcement(const char* input) {
 
     if(input == NULL) return 0;
@@ -1112,8 +1101,7 @@ void* out_server() {
         pthread_mutex_lock(&our_mutex);
 
         pthread_mutex_t message_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-
+        
         li_foreach(outbound_msg_queue, process_outbound, &message_mutex);
 
         ping_function();
@@ -1183,7 +1171,7 @@ int rare_socket(message_item* in_message) {
 
 //Done to each message in 'outbound_msg_queue'. input is of type message_item struct
 void* process_outbound(list* in_list, li_node* input, void* data) {
-
+    
     if(input == NULL) return NULL;
     
     /*
@@ -1206,6 +1194,8 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
 
     message_item* our_message = (message_item*)input->data;
     socket_item* sock_out_to_use = (socket_item*)dict_access(out_sockets,our_message->toWhom);
+
+    if(our_message->tries == 1) return NULL;
 
     int the_socket;
     int used_rare_socket = 0;
@@ -1536,7 +1526,8 @@ int main(int argc, char* argv[]) {
     inbound_msg_queue = list_create();
 
     //Create workers
-    pthread_mutex_t our_mutex = PTHREAD_MUTEX_INITIALIZER;
+    //pthread_mutex_t our_mutex = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_init(&our_mutex, NULL);
     pthread_create(&inbound_network_thread, NULL, in_server, NULL);
     pthread_create(&outbound_network_thread, NULL, out_server, NULL);
     pthread_create(&inbound_executor_thread, NULL, inbound_executor, NULL);

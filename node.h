@@ -57,7 +57,7 @@ void* announce_message(list* in_list, li_node* in_item, void* data);
 
 int insert_trans(const char* input);
 int insert_post(const char* input);
-void register_new_node(const char* input);
+int register_new_node(const char* input);
 int verify_post_format(const char* post);
 
 

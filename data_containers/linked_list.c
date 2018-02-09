@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <string.h>
 
 #include "linked_list.h"
@@ -14,7 +13,7 @@ list* list_create()
     return our_list;
 }
 
-//Create node in list
+//Create node
 li_node* li_new(void* input, size_t in_size)
 {
     li_node* temp = malloc(sizeof(li_node));
@@ -61,6 +60,8 @@ li_node* li_append(list* in_list, void* input, size_t in_size)
         li_node* cursor = in_list->head;
         while(cursor->next != NULL)
             cursor = cursor->next;
+
+
         cursor->next = temp;
         temp->prev = cursor;
     }
@@ -118,16 +119,16 @@ void li_delete_node(list* in_list, li_node* in_node) {
     if(in_node == NULL)
         return;
 
-    if(in_node->next == NULL && in_node->prev == NULL) {
+    else if(in_node->next == NULL && in_node->prev == NULL) {
         debug = 1;
     }
 
-    if(in_node->next == NULL && in_node->prev != NULL) {
+    else if(in_node->next == NULL && in_node->prev != NULL) {
         in_node->prev->next = NULL;
         debug = 2;
     }
 
-    if(in_node->prev == NULL && in_node->next != NULL) {
+    else if(in_node->prev == NULL && in_node->next != NULL) {
         in_node->next->prev = NULL;
         in_list->head = in_node->next;
         debug = 3;
@@ -139,8 +140,9 @@ void li_delete_node(list* in_list, li_node* in_node) {
         debug = 4;
     }
 
-    free(in_node);
     free(in_node->data);
+    free(in_node);
+    in_node = NULL;
 
     in_list->length--;
 
@@ -199,6 +201,7 @@ void li_discard(list* in_list)
     }
 
     free(in_list);
+    return;
 }
 //Search string list for string
 li_node* li_string_search(list* in_list, li_node* head, char* input_value)
@@ -270,9 +273,10 @@ void li_foreach(list* in_list, void* (*func)(list* in_list, li_node* input, void
     li_node* temp = in_list->head;
     while(temp != NULL) {
         
-        li_node* next = temp->next;
+    
+        li_node* next = temp->next; //Save next pointer because node might be deleted
  
-        int to_delete = (int)(*func)(in_list, temp, data);
+        (*func)(in_list, temp, data);
 
         count++;
 

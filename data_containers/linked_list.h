@@ -1,28 +1,27 @@
-#include <stdbool.h>
+//Doubly-linked list holding void* data by DG
 
 //Node in List
-typedef struct li_node
-{
+typedef struct li_node {
     void* data;
     size_t size;
     struct li_node* next;
     struct li_node* prev;
 } li_node;
 
-//ing List
-typedef struct list
-{
+//List structure
+typedef struct list {
     li_node* head;
     int length;
 } list;
 
- typedef struct list_and_node_combo {
-        list* the_list;
-        li_node* the_node;
-        void* the_data;
-    } list_and_node_combo;
+//Holds both
+typedef struct list_and_node_combo {
+    list* the_list;
+    li_node* the_node;
+    void* the_data;
+} list_and_node_combo;
 
-//ing list functions
+//list functions
 list* list_create();
 li_node* li_new(void* input, size_t in_size);
 li_node* li_prepend(list* in_list, void* input, size_t in_size);
