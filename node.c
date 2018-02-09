@@ -13,7 +13,7 @@
 #include "data_containers/linked_list.h"
 #include "node.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #define MESSAGE_LENGTH 100000
 #define SHORT_MESSAGE_LENGTH 300
 
@@ -69,7 +69,7 @@ int last_ping;
 /////////////////////////////////////////////////////
 
 //Print remainding balance in quickledger
-int print_balance(bt_node* current_node) {
+int print_balance(bt_node* current_node, void* data) {
 
     if(current_node == NULL || current_node->data == NULL) return 0;
 
@@ -79,7 +79,7 @@ int print_balance(bt_node* current_node) {
 }
 
 //Print remaining keys within quickledger
-int print_keys(bt_node* current_node) {
+int print_keys(bt_node* current_node, void* data) {
     
     if(current_node == NULL || current_node->data == NULL) return 0;
 
@@ -110,7 +110,7 @@ void setup_message(message_item* in_message) {
 }
 
 //Frees memory of all chains in a dict
-int destroy_chains_in_dict(bt_node* current_node) {
+int destroy_chains_in_dict(bt_node* current_node, void* data) {
 
     if(current_node == NULL || current_node->data == NULL) return 0;
 
@@ -121,7 +121,7 @@ int destroy_chains_in_dict(bt_node* current_node) {
 }
 
 //Frees memory of all chains in a dict
-int destroy_sockets_in_dict(bt_node* current_node) {
+int destroy_sockets_in_dict(bt_node* current_node, void* data) {
 
     if(current_node == NULL || current_node->data == NULL) return 0;
     
@@ -207,6 +207,7 @@ int mine() {
 
         //Program is closing
         else if(result == -2) {
+            pthread_mutex_unlock(&our_mutex);
             return 0;
         }
 
@@ -635,8 +636,7 @@ int verify_file_block(const char* input, int* curr_index) {
     }
     else {
         printf("Invalid.\n");
-        discard_chain(our_chain);
-
+        return 0;
     }
 
     return 0;
@@ -658,8 +658,10 @@ int read_chain_from_file(blockchain* in_chain, char* file_name) {
         printf("Read from file: %s\n", buffer);
         int suc_read = verify_file_block(buffer,&curr_index);
 
-        if(!suc_read)
+        if(!suc_read) {
+            discard_chain(our_chain);
             return 0;
+        }
     }
     fclose(chain_file);
 
@@ -755,34 +757,39 @@ int send_our_chain(const char* address) {
 }
 
 //Remove chains that have no been used for a minute: They're old now
-int prune_chains(bt_node* current_node) {
+int prune_chains(bt_node* current_node, void* data) {
 
-    if(current_node == NULL || current_node->data == NULL) return 0;
+    if(current_node == NULL || current_node->data == NULL /*|| data == NULL */) return 0;
 
     alt_chain* the_chain = (alt_chain*)current_node->data;
+    list* pruner_list = (list*)data;
 
     if( time(NULL) - the_chain->last_time > 60 ) {
         printf("Pruning chain with ID: '%s'\n", current_node->key);
         discard_chain(the_chain->the_chain);
-        dict_del_elem(foreign_chains,current_node->key,0);
+        //dict_del_elem(foreign_chains,current_node->key,0);
+        li_append(pruner_list, current_node->key, strlen(current_node->key) + 1);
     }
 
     return 1;
 }
 
 //Remove Sockets that have not been used for 600 seconds: They're old now
-int prune_sockets(bt_node* current_node) {
+int prune_sockets(bt_node* current_node, void* data) {
 
     if(current_node == NULL || current_node->data == NULL) return 0;
     
     socket_item* the_socket = (socket_item*)current_node->data;
+    list* pruner_list = (list*)data;
 
     if(the_socket == NULL) return 0;
 
     if( time(NULL) - the_socket->last_used > 600 ) {
         printf("Pruning socket with ip: '%s'\n", current_node->key);
         nn_close(the_socket->socket);
-        dict_del_elem(out_sockets,current_node->key,0);
+        //dict_del_elem(out_sockets,current_node->key,0);
+        li_append(pruner_list, current_node->key,  strlen(current_node->key) + 1);
+
     }
 
     return 1;
@@ -1040,7 +1047,7 @@ void* in_server() {
     sock_in = nn_socket (AF_SP, NN_PULL);
     assert (sock_in >= 0);
     assert (nn_bind (sock_in, our_ip) >= 0);
-    int timeout = 500;
+    int timeout = 50;
     assert (nn_setsockopt (sock_in, NN_SOL_SOCKET, NN_RCVTIMEO, &timeout, sizeof (timeout)) >= 0);
 
     printf("Inbound Socket Ready!\n");
@@ -1057,24 +1064,74 @@ void* in_server() {
 
             li_append(inbound_msg_queue,buf,bytes);
         }
-
-        if(close_threads)
+        if(close_threads) {
+                pthread_mutex_unlock(&our_mutex);            
                 return 0;
+        }
+
+
         pthread_mutex_unlock(&our_mutex);            
 
     }
     return 0;
 }
 
+void* destroy_items_in_dict(list* in_list, li_node* input , void* data) {
+
+    if(in_list == NULL || input == NULL || data == NULL) return NULL;
+
+    char* to_destroy = (char*)input->data;
+    dict* for_chain_dict = (dict*)data;
+
+    dict_del_elem(for_chain_dict,to_destroy, 0);
+
+    return NULL;
+}
+
+void* print_string(void* data) {
+
+    char* string = (char*)data;
+    printf("- %s\n", string);
+
+    return NULL;
+
+}
+
+
 //Executes everything in execution queue + prunes data structures
 void* inbound_executor() {
     while(true) {
         pthread_mutex_lock(&our_mutex);
         li_foreach(inbound_msg_queue, process_inbound, NULL);
-        dict_foreach(foreign_chains,prune_chains,NULL);
-        dict_foreach(out_sockets,prune_sockets,NULL);
-        if(close_threads)
+
+
+
+        list* chains_to_prune = list_create();
+        dict_foreach(foreign_chains,prune_chains,chains_to_prune);
+        li_foreach(chains_to_prune, destroy_items_in_dict, foreign_chains);
+        if(chains_to_prune->length > 0) {
+            printf("CHAINS IN PRUNE LIST:\n");
+            li_print(chains_to_prune, print_string);
+        }
+        li_discard(chains_to_prune);
+
+        list* sockets_to_prune = list_create();
+        dict_foreach(out_sockets,prune_sockets,sockets_to_prune);
+        li_foreach(sockets_to_prune, destroy_items_in_dict, out_sockets);
+        if(sockets_to_prune->length > 0) {
+            printf("SOCKETS IN PRUNE LIST:\n");
+            li_print(sockets_to_prune, print_string);
+        }
+        li_discard(sockets_to_prune);
+
+
+        if(close_threads) {
+            pthread_mutex_unlock(&our_mutex);
             return NULL;
+        }
+
+
+
         pthread_mutex_unlock(&our_mutex);
         
         usleep(1000);
@@ -1105,8 +1162,10 @@ void* out_server() {
         li_foreach(outbound_msg_queue, process_outbound, &message_mutex);
 
         ping_function();
-        if(close_threads)
+        if(close_threads) {
+            pthread_mutex_unlock(&our_mutex);
             return NULL;
+        }
         pthread_mutex_unlock(&our_mutex);
 
         usleep(1000);
@@ -1217,6 +1276,9 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
         usleep(100000);
         nn_close(the_socket);
     }
+    else {
+        usleep(1000);
+    }
 
     //Try three times
     if(bytes > 0 || our_message->tries == 2) li_delete_node(in_list, input);
@@ -1285,19 +1347,22 @@ int write_config() {
 
 //Free all outstanding memory
 void graceful_shutdown(int dummy) {
-    printf("\nCommencing graceful shutdown!\n");
 
-    //Write out new node list to file
-    write_config();
+    printf("\nCommencing graceful shutdown!\n");
 
     close_threads = 1;
     beaten = 2;
 
-    pthread_join(inbound_executor_thread, NULL);
+
     pthread_join(outbound_network_thread, NULL);
     pthread_join(inbound_network_thread, NULL);
+    pthread_join(inbound_executor_thread, NULL);
 
     pthread_mutex_lock(&our_mutex);
+
+
+    //Write out new node list to file
+    write_config();
     
     //Discard lists
     li_discard(other_nodes);

@@ -71,7 +71,7 @@ void bt_nodes_print(bt_node* in_node, int verbosity) {
 
 }
 
-int bt_node_free(bt_node* in_node) {
+int bt_node_free(bt_node* in_node, void* data) {
 
     if(in_node == NULL) return 0;
 
@@ -82,7 +82,7 @@ int bt_node_free(bt_node* in_node) {
     return 1;
 }
 
-int bt_node_free_keep_data(bt_node* in_node) {
+int bt_node_free_keep_data(bt_node* in_node, void* data) {
 
     if(in_node == NULL) return 0;
 
@@ -102,8 +102,8 @@ bt_node* bt_node_remove(bt_node* in_head, char* in_key, int keep_data) {
 
         //Both Children are NULL
         if(in_head->left == NULL && in_head->right == NULL) {
-            if(keep_data == 0) bt_node_free(in_head);
-            else bt_node_free_keep_data(in_head);
+            if(keep_data == 0) bt_node_free(in_head, NULL);
+            else bt_node_free_keep_data(in_head, NULL);
             in_head = NULL;
         }
 
@@ -111,16 +111,16 @@ bt_node* bt_node_remove(bt_node* in_head, char* in_key, int keep_data) {
         else if(in_head->left == NULL) {
             bt_node* temp = in_head;
             in_head = in_head->right;
-            if(keep_data == 0) bt_node_free(temp);
-            else bt_node_free_keep_data(in_head);
+            if(keep_data == 0) bt_node_free(temp, NULL);
+            else bt_node_free_keep_data(in_head, NULL);
 
         }
         //One Child is NULL
         else if(in_head->right == NULL) {
             bt_node* temp = in_head;
             in_head = in_head->left;
-            if(keep_data == 0) bt_node_free(temp);
-            else bt_node_free_keep_data(in_head);
+            if(keep_data == 0) bt_node_free(temp, NULL);
+            else bt_node_free_keep_data(in_head, NULL);
 
         }
         //Both children are real
@@ -135,8 +135,8 @@ bt_node* bt_node_remove(bt_node* in_head, char* in_key, int keep_data) {
             bt_node* replacement = bt_node_create(temp->key,temp->data,temp->size);
             replacement->left = in_head->left;
             replacement->right = in_head->right;
-            if(keep_data == 0) bt_node_free(in_head);
-            else bt_node_free_keep_data(in_head);
+            if(keep_data == 0) bt_node_free(in_head, NULL);
+            else bt_node_free_keep_data(in_head, NULL);
 
             in_head = replacement;
 
@@ -244,7 +244,7 @@ int bt_print_key(bt_node* in_node) {
 }
 
 
-int bt_foreach(bt_node* in_node, int (*func)(bt_node* current_node),void* data) {
+int bt_foreach(bt_node* in_node, int (*func)(bt_node* current_node, void* data),void* data) {
 
     //Run function on left side
     if(in_node->left != NULL)
@@ -254,7 +254,7 @@ int bt_foreach(bt_node* in_node, int (*func)(bt_node* current_node),void* data) 
     bt_node* temp_right = in_node->right;
     
     //Run function on your self
-    if(in_node != NULL) func(in_node);
+    if(in_node != NULL) func(in_node,data);
 
     //Run function on right side
     if(temp_right != NULL)
@@ -265,7 +265,7 @@ int bt_foreach(bt_node* in_node, int (*func)(bt_node* current_node),void* data) 
 
 
 
-int dict_foreach(dict* in_dict, int (*func)(bt_node* current_node), void* data) {
+int dict_foreach(dict* in_dict, int (*func)(bt_node* current_node, void* data), void* data) {
 
     if(in_dict == NULL || in_dict->head == NULL) return 0;
 

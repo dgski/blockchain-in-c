@@ -352,7 +352,7 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
 }
 
 
-int check_on_unaccepted(bt_node* current_node) {
+int check_on_unaccepted(bt_node* current_node, void* data) {
 
     if(current_node == NULL) return 0;
 
@@ -388,7 +388,7 @@ void* out_server() {
     }
 }
 
-int print_posts_trans(bt_node* current_node) {
+int print_posts_trans(bt_node* current_node, void* data) {
 
     int value = ( ((p_thing*)current_node->data)->status );
 

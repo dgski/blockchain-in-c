@@ -27,7 +27,8 @@ int verify_acceptance_trans_or_post(const char* input);
 
 int create_socket(const char* input);
 
-int destroy_sockets_in_dict(bt_node* current_node);
+int destroy_sockets_in_dict(bt_node* current_node, void* data);
+int destroy_chains_in_dict(bt_node* current_node, void* data);
 
 int rare_socket(message_item* in_message);
 
@@ -66,8 +67,8 @@ void process_message(const char* in_msg);
 int read_node_list();
 void graceful_shutdown(int dummy);
 void setup_message(message_item* in_message);
-int print_balance(bt_node* current_node);
-int print_keys(bt_node* current_node);
+int print_balance(bt_node* current_node, void* data);
+int print_keys(bt_node* current_node, void* data);
 
 int ping_function();
 

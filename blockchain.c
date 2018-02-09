@@ -678,10 +678,10 @@ bool valid_proof(char* last_hash, char* trans_hash,  long proof) {
     unsigned char hash_value[HASH_SIZE];
     hash256(hash_value,guess);
 
-    if(1)
+    if(0)
         return (hash_value[0] == '0' && hash_value[1] == '0' /* && hash_value[2] == '0'  && (hash_value[3] > 60 && hash_value[3] < 127)*/);
     else
-        return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' && (hash_value[3] > 60 && hash_value[3] < 127));
+        return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' /*&& (hash_value[3] > 60 && hash_value[3] < 127)*/);
 
 }
 
@@ -699,6 +699,7 @@ long proof_of_work(int* beaten, char* last_hash, char* trans_hash) {
             return -1;
         }
         if(*beaten == 2) {
+            printf("Shutting Down Mining.\n");
             return -2;
         }
         if(strcmp(old_trans_hash, trans_hash)) {
