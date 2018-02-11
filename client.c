@@ -60,12 +60,14 @@ typedef struct client_message_item {
     int type;
 } client_message_item;
 
+//Holds a sent object
 typedef struct p_thing {
     int status;
     int amount;
     dict* confirmed_by;
 } p_thing;
 
+//Creates a sent object
 p_thing* create_p_thing() {
 
     p_thing* temp = malloc(sizeof(p_thing));
@@ -76,6 +78,7 @@ p_thing* create_p_thing() {
     return temp;
 }
 
+//Destroys a sent object
 void destroy_p_thing(p_thing* in_thing) {
 
     dict_discard(in_thing->confirmed_by);
@@ -84,7 +87,7 @@ void destroy_p_thing(p_thing* in_thing) {
 }
 
 
-
+//Sets up a message
 void setup_message(client_message_item* in_message) {
     in_message->status = -1;
     in_message->tries = 0;
@@ -93,10 +96,11 @@ void setup_message(client_message_item* in_message) {
     return;
 }
 
+//Display Help
 void display_help() {
     printf("Help/Command List: 'h'\n");
     printf("Transactions List: 't'\n");
-    printf("Submit a post: 'n sender reciever amount'\n");
+    printf("Submit a post: 'p note'\n");
     printf("Post New Transaction: 'n sender reciever amount'\n");
     printf("Quit program: 'q'\n");
     return;

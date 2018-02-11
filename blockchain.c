@@ -503,12 +503,13 @@ int extract_transactions_raw(transaction* trans_array, char* input_trans_string)
             return 0;
 
         }
-        
+        /*
         printf("time_of: %s", time_of);
         printf("sender: %s\n", sender);
         printf("reciever: %s\n", reciever);
         printf("amount: %s\n", amount);
         printf("signature: %s\n", signature);
+        */
 
         char output[10000] = {0};
         string_trans_nosig(output,atoi(time_of),sender,reciever,atoi(amount));
@@ -572,23 +573,30 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, const ch
 
     for(int i = 0; trans_strings[i] != 0; i++) {
 
+        printf("TRANSACTION #%d:\n", i);
         time_of = strtok(trans_strings[i],":");
         sender = strtok(NULL, ":");
         reciever = strtok(NULL, ":");
         amount = strtok(NULL, ":");
         signature = strtok(NULL, ":");
 
-        char output[2500] = {0};
+        if(time_of == NULL || sender == NULL || reciever == NULL || amount == NULL || signature == NULL) {
+            printf("RETURNING ZERO!\n");
+            return 0;
+        }
+
+        printf("time_of: %s", time_of);
+        printf("sender: %s\n", sender);
+        printf("reciever: %s\n", reciever);
+        printf("amount: %s\n", amount);
+        printf("signature: %s\n", signature);
+
+        char output[10000] = {0};
         string_trans_nosig(output, atoi(time_of),sender,reciever,atoi(amount));
 
         printf("VERIFYING TRANSACTION:\n");
-        /*
-        if(!verify_signiture(output,sender,reciever,amount,signature))
-            return 0;
-            */
-
         if(!verify_message(output,sender,signature))
-            return 0 ;
+            return 0;
 
 
         trans_array[i].time_of = atoi(time_of);
@@ -625,7 +633,6 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, const ch
         if(in_chain->total_currency < CURRENCY_CAP)
             in_chain->total_currency += CURRENCY_SPEED;
         
-    
 
         void* recipient_funds = dict_access(in_chain->quickledger, reciever);
         int recipient_future_balance = 0;
@@ -840,27 +847,9 @@ int message_signature(char* output, char* message, RSA* keypair, char* pub_key) 
         strcat(output,buf);
     }
 
-    //Verify
-    unsigned char signature[256];
-    char* pointer = output;
-    //extract sig from hex asci
-    for(int i = 0; i < 256; i++) {
-        unsigned int value;
-        sscanf(pointer, "%02x", &value);
-        //printf("%02x", value);
-        pointer = pointer + 2;
-        signature[i] = value;
-    }
-
-    BIO* bio = BIO_new_mem_buf((void*)pub_key, strlen(pub_key));
-    RSA* rsa_pub = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
-
-    rc = RSA_verify(NID_sha256, data,32,signature,256,rsa_pub);
-
-    BIO_free(bio);
-    RSA_free(rsa_pub);
-
-
+    char stripped_key[1000];
+    strip_pub_key(stripped_key,pub_key);
+    rc = verify_message(message, stripped_key, output);
     if(rc != 1) printf("ERROR VERIFYING!\n"); else printf("VERIFIED!\n");
 
 

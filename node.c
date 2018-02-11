@@ -23,6 +23,7 @@
 
 //Identification
 char our_ip[300] = {0};
+int our_id = 0;
 char node_list_file[300] = {0};
 RSA* our_keys;
 char* pub_key;
@@ -161,15 +162,16 @@ int mine() {
         pthread_mutex_lock(&our_mutex);
         char sig[513] = {0};
         char output[2500] = {0};
+        int time_of_creation = time(NULL);
         if(our_chain->total_currency < CURRENCY_CAP) {
-            string_trans_nosig(output, time(NULL),stripped_pub_key, stripped_pub_key, CURRENCY_SPEED);
+            string_trans_nosig(output, time_of_creation,stripped_pub_key, stripped_pub_key, CURRENCY_SPEED);
             message_signature(sig,output, our_keys,pub_key);
-            new_transaction(our_chain, time(NULL),stripped_pub_key,stripped_pub_key, CURRENCY_SPEED, sig);
+            new_transaction(our_chain, time_of_creation,stripped_pub_key,stripped_pub_key, CURRENCY_SPEED, sig);
         }
         else {
-            string_trans_nosig(output, time(NULL),stripped_pub_key, stripped_pub_key, 0);
+            string_trans_nosig(output, time_of_creation,stripped_pub_key, stripped_pub_key, 0);
             message_signature(sig,output, our_keys,pub_key);
-            new_transaction(our_chain,time(NULL),stripped_pub_key,stripped_pub_key, 0, sig);
+            new_transaction(our_chain,time_of_creation,stripped_pub_key,stripped_pub_key, 0, sig);
         }
         pthread_mutex_unlock(&our_mutex);
         }
@@ -183,7 +185,7 @@ int mine() {
         pthread_mutex_lock(&our_mutex);
 
         //Found necessary proof of work
-        if(result > 0) {
+        if(result > 0 && beaten == 0) {
             printf(ANSI_COLOR_GREEN);
             printf("\nMINED: %.4f min(s)\n", (time_2 - time_1)/60.0);
 
@@ -197,10 +199,10 @@ int mine() {
             }
 
         //Someone beat us
-        else if(result == -1) {
+        else if(result == -1 && beaten == 1) {
             printf("Abandoning our in-progress block.\n");
-            memset(our_chain->trans_list,0, sizeof(our_chain->trans_list));
-            our_chain->trans_index = 0;
+            //memset(our_chain->trans_list,0, sizeof(our_chain->trans_list));
+            //our_chain->trans_index = 0;
             beaten = 0;
 
         }
@@ -443,7 +445,7 @@ int create_socket(const char* input) {
 
     new_out_socket.socket = nn_socket(AF_SP, NN_PUSH);
     if(new_out_socket.socket < 0) return 0;
-    int timeout = 50;
+    int timeout = 100;
     if(nn_setsockopt(new_out_socket.socket, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(timeout)) < 0) return 0;
 
     if(nn_connect (new_out_socket.socket, address) < 0){
@@ -484,7 +486,6 @@ int register_new_node(const char* input) {
             our_socket->last_used = time(NULL);
         }
 
-
     }
     else {
         //Add to our list
@@ -521,7 +522,7 @@ int register_new_node(const char* input) {
 }
 
 //Save our chain in .noins format
-int save_chain_to_file(blockchain* in_chain, char* file_name) {
+int save_chain_to_file(blockchain* in_chain, const char* file_name) {
 
     if(in_chain == NULL || file_name == NULL) return 0;
 
@@ -548,6 +549,7 @@ int save_chain_to_file(blockchain* in_chain, char* file_name) {
 
 }
 
+//Verify the given block read from a a '.noins' file
 int verify_file_block(const char* input, int* curr_index) {
 
 
@@ -644,8 +646,8 @@ int verify_file_block(const char* input, int* curr_index) {
 
 }
 
-
-int read_chain_from_file(blockchain* in_chain, char* file_name) {
+//Open the given file, read it line by line, and validate the blocks
+int read_chain_from_file(blockchain* in_chain, const char* file_name) {
 
     printf("Reading our chain from file: '%s'\n", file_name);
     FILE* chain_file = fopen(file_name, "r"); //blockchain_file name
@@ -727,8 +729,10 @@ int send_our_chain(const char* address) {
     
     //Generate random chain id
     char rand_chain_id[60];
+    srand(time(NULL));
     int r = rand();   
-    sprintf(rand_chain_id, "CHIN%010d.", r);
+    sprintf(rand_chain_id, "CHIN%010d%010d.", r, our_id);
+    printf("Generated chain: '%s'\n", rand_chain_id);
 
     //Iterate over all blocks in chain
     for(int i = 0; i < our_chain->length + 1; i++) {
@@ -795,9 +799,10 @@ int prune_sockets(bt_node* current_node, void* data) {
     return 1;
 }
 
-
+//Check whether the block received is valid
 int verify_foreign_block(const char* input) {
 
+    
     char f_block[MESSAGE_LENGTH] = {0};
     strcpy(f_block, input);
     
@@ -811,25 +816,6 @@ int verify_foreign_block(const char* input) {
     char* trans_size = strtok(NULL, ".");
     char* proof = strtok(NULL, ".");
     char* hash = strtok(NULL, ".");
-    
-    /*
-    if(chain_id == NULL || exp_length == NULL || index == NULL || time_gen == NULL ||
-    posts == NULL || posts_size == NULL || transactions == NULL || trans_size == NULL ||
-    proof == NULL || hash == NULL)
-        return 0;
-
-    printf("chain_id: %s\n", chain_id);
-    printf("exp_length: %s\n", exp_length);
-    printf("index: %s\n", index);
-    printf("time_gen: %s\n", time_gen);
-    printf("posts: %s\n", posts);
-    printf("posts_size: %s\n", posts_size);
-    printf("transactions: %s\n", transactions);
-    printf("trans_size: %s\n", trans_size);
-    printf("proof: %s\n", proof);
-    printf("hash: %s\n", hash);
-    */
-
 
     printf("Block of %s with index %d recieved\n", chain_id, atoi(index));
 
@@ -861,10 +847,6 @@ int verify_foreign_block(const char* input) {
         printf("Not expecting this index number\n");
         return 0;
     }
-    // Everything good... Get ready for next block
-    else {
-        this_chain->expected_index++;
-    }
 
 
     long the_proof;
@@ -889,7 +871,7 @@ int verify_foreign_block(const char* input) {
 
 
 
-    //Chain is valid
+    //Block is valid
     if(valid_proof(this_chain->the_chain->last_hash,trans_hash, the_proof)){
 
         this_chain->last_time = time(NULL);
@@ -898,7 +880,8 @@ int verify_foreign_block(const char* input) {
         int all_valid_trans = extract_transactions(this_chain->the_chain, rec_trans, transactions);
         int all_valid_posts = validate_posts(this_chain->the_chain,new_post_array,atoi(posts_size));
 
-        if(!all_valid_trans && !all_valid_posts) {
+
+        if(!all_valid_trans || !all_valid_posts) {
             printf("Invalid.\n");
             return 0;
         }
@@ -908,9 +891,12 @@ int verify_foreign_block(const char* input) {
         //Add block
         blink* a_block = append_new_block(this_chain->the_chain, atoi(index), atoi(time_gen),rec_trans, new_post_array, atoi(trans_size), atoi(posts_size), the_proof);
 
-            printf("\nFOREIGN DICT SIZE %d:\n", foreign_chains->size);
-            dict_foreach(foreign_chains, print_keys,NULL);
-            printf("\n");
+        printf("\nFOREIGN DICT SIZE %d:\n", foreign_chains->size);
+        dict_foreach(foreign_chains, print_keys,NULL);
+        printf("\n");
+
+        this_chain->expected_index++;
+
 
 
         if((atoi(index) == this_chain->expected_length) ) {
@@ -948,7 +934,6 @@ int verify_foreign_block(const char* input) {
     return 0;
     
 }  
-
 
 //Message type: T: transaction, P: post, B: block, N: new node, L: blockchain length, C: chain
 void process_message(const char* in_msg) {
@@ -1036,7 +1021,7 @@ int client_existance_announcement(const char* input) {
 //Inbound thread function - receives messages and adds them to execution queue
 void* in_server() {
     
-    printf("Blockchain in C Major: Server v0.8\n");
+    printf("Blockchain in C Major: Server v0.9 beta\n");
     printf("Node IP: %s\n", our_ip);
     printf("Other node List: %s\n", node_list_file);
     printf("Pri Key File: %s\n", pri_file);
@@ -1076,6 +1061,7 @@ void* in_server() {
     return 0;
 }
 
+//Free the given data within a list of dicts
 void* destroy_items_in_dict(list* in_list, li_node* input , void* data) {
 
     if(in_list == NULL || input == NULL || data == NULL) return NULL;
@@ -1088,6 +1074,7 @@ void* destroy_items_in_dict(list* in_list, li_node* input , void* data) {
     return NULL;
 }
 
+//Print a given nodes value taken from a linked list of strings
 void* print_string(void* data) {
 
     char* string = (char*)data;
@@ -1097,15 +1084,13 @@ void* print_string(void* data) {
 
 }
 
-
 //Executes everything in execution queue + prunes data structures
 void* inbound_executor() {
     while(true) {
+        li_foreach(inbound_msg_queue, process_inbound, &our_mutex);
+
+
         pthread_mutex_lock(&our_mutex);
-        li_foreach(inbound_msg_queue, process_inbound, NULL);
-
-
-
         list* chains_to_prune = list_create();
         dict_foreach(foreign_chains,prune_chains,chains_to_prune);
         li_foreach(chains_to_prune, destroy_items_in_dict, foreign_chains);
@@ -1134,20 +1119,26 @@ void* inbound_executor() {
 
         pthread_mutex_unlock(&our_mutex);
         
-        usleep(1000);
+        usleep(100);
     }
 }
 
 //Executed the message, input is of type message_item struct
 void* process_inbound(list* in_list, li_node* input, void* data) {
 
-    if(input == NULL) return NULL;
+    if(input == NULL || data == NULL) return NULL;
+
+    pthread_mutex_t* the_mutex = (pthread_mutex_t*)data;
+
 
     char the_message[MESSAGE_LENGTH] = {0};
     memcpy(the_message,input->data,input->size);
-    process_message(the_message);
 
+
+    pthread_mutex_lock(the_mutex);
+    process_message(the_message);
     li_delete_node(in_list, input);
+    pthread_mutex_unlock(the_mutex);
 
     return NULL;
 }
@@ -1168,48 +1159,11 @@ void* out_server() {
         }
         pthread_mutex_unlock(&our_mutex);
 
-        usleep(1000);
+        usleep(100);
     }
 }
 
-/*
-void* out_message_sep(void* in_data) {
-
-    //printf("MESSAGE: %s\n", (char*)in_data);
-
-    list_and_node_combo* the_combo = (list_and_node_combo*)in_data;
-
-    li_node* input = (li_node*)the_combo->the_node;
-    list* in_list = (list*)the_combo->the_list;
-    pthread_mutex_t* the_mutex = (pthread_mutex_t*)the_combo->the_data;
-
-
-    message_item* our_message = (message_item*)input->data;
-    socket_item* sock_out_to_use = (socket_item*)dict_access(out_sockets,our_message->toWhom);
-
-    if(sock_out_to_use == NULL) return NULL;
-
-    printf("Sending to: %s, ",our_message->toWhom);
-    int bytes = nn_send (sock_out_to_use->socket, our_message->message, strlen(our_message->message), 0);
-    printf("Bytes sent: %d\n", bytes);
-    sock_out_to_use->last_used = time(NULL);
-
-    pthread_mutex_lock(the_mutex);
-    //Update socket usage time
-    dict_insert(out_sockets,our_message->toWhom,sock_out_to_use,sizeof(*sock_out_to_use));
-
-    //Try three times
-    if(bytes > 0 || our_message->tries == 2) li_delete_node(in_list, input);
-    else our_message->tries++;
-    pthread_mutex_unlock(the_mutex);
-
-
-    //free(in_data);
-
-    return NULL;
-
-}*/
-
+//Spawns a random socket for use for one time - not a usual customer
 int rare_socket(message_item* in_message) {
 
     int sock_here = nn_socket(AF_SP, NN_PUSH);
@@ -1226,30 +1180,10 @@ int rare_socket(message_item* in_message) {
     return sock_here;
 }
 
-
-
 //Done to each message in 'outbound_msg_queue'. input is of type message_item struct
 void* process_outbound(list* in_list, li_node* input, void* data) {
     
     if(input == NULL) return NULL;
-    
-    /*
-    list_and_node_combo* the_combo = malloc(sizeof(list_and_node_combo));
-    the_combo->the_list = in_list;
-    the_combo->the_node = input;
-    the_combo->the_data = data;
-
-    pthread_t new_thread;
-    //&(outbound_msgs[out_index++])
-
-    //char* new_string = malloc(100);
-    //strcpy(new_string,"HELLO!!!!!");
-    
-    pthread_create(&(outbound_msgs[out_index++]),NULL,out_message_sep, the_combo);
-
-    return NULL;
-    */
-
 
     message_item* our_message = (message_item*)input->data;
     socket_item* sock_out_to_use = (socket_item*)dict_access(out_sockets,our_message->toWhom);
@@ -1277,7 +1211,7 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
         nn_close(the_socket);
     }
     else {
-        usleep(1000);
+        usleep(100);
     }
 
     //Try three times
@@ -1286,7 +1220,6 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
 
     return NULL;
 }
-
 
 //Read configuration file
 int read_node_list() {
@@ -1313,7 +1246,7 @@ int read_node_list() {
     return 1;
 }
 
-
+//For given node data, write to the file provided
 void* li_write_string_file(list* in_list, li_node* in_node, void* data) {
 
     if(in_node == NULL || in_node->size > 300) return NULL;
@@ -1341,9 +1274,6 @@ int write_config() {
     return 0;
 
 }
-
-
-
 
 //Free all outstanding memory
 void graceful_shutdown(int dummy) {
@@ -1391,7 +1321,8 @@ void graceful_shutdown(int dummy) {
     exit(0);
 }
 
-int setup_ip_address(char* in_ip_address) {
+//Save our ip address 
+int setup_ip_address(const char* in_ip_address) {
 
     if(in_ip_address == NULL) return 0;
 
@@ -1404,7 +1335,8 @@ int setup_ip_address(char* in_ip_address) {
     return 0;
 }
 
-int setup_pri_key(char* in_pri_key) {
+//Read private key filename from command line argument
+int setup_pri_key(const char* in_pri_key) {
 
     if(in_pri_key == NULL) return 0;
 
@@ -1418,6 +1350,7 @@ int setup_pri_key(char* in_pri_key) {
     return 0;
 }
 
+//Read public key filename from command line argument
 int setup_pub_key(char* in_pub_key) {
 
     if(in_pub_key == NULL) return 0;
@@ -1432,6 +1365,7 @@ int setup_pub_key(char* in_pub_key) {
     return 0;
 }
 
+//Read node list filename from command line argument
 int setup_node_list(char* in_node_list) {
 
     if(in_node_list == NULL) return 0;
@@ -1447,6 +1381,7 @@ int setup_node_list(char* in_node_list) {
 
 }
 
+//Read chain name filename from command line argument
 int setup_chain_file(char* in_chain_file) {
 
     if(in_chain_file == NULL) return 0;
@@ -1512,6 +1447,10 @@ int main(int argc, char* argv[]) {
 
     
     beaten = 0;
+
+    //Create random_id
+    srand(time(NULL));
+    our_id = rand();
 
     //Initialize Crypto
     OpenSSL_add_all_algorithms();
