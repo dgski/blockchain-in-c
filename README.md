@@ -1,9 +1,6 @@
 # noincoin (Block Chain in C Major)
-
-![Coin Design](coin.png)
-
-
 **A rough cryptocurrency implementation written in C. Uses only C std library and nanomsg for communication.**
+![Coin Design](coin.png)
 
 Nodes can mine noins(notecoins) which can be used to buy musical 'notes' on the blockchain. Each block contains eight notes (one octave) and together they comprise an everlasting piece of music anyone can contribute to.
 
