@@ -25,6 +25,9 @@
 #define ANSI_COLOR_BLUE    "\x1b[34m"
 #define ANSI_COLOR_MAGENTA "\x1b[35m"
 
+/////////////////////////////////////////////
+// STRUCTURES
+/////////////////////////////////////////////
 
 //Transaction structure
 typedef struct transaction {
@@ -35,6 +38,7 @@ typedef struct transaction {
     char signature[550];
 } transaction;
 
+//Post structure
 typedef struct post {
     int time_of;
     char poster[PUBLIC_ADDRESS_SIZE];
@@ -54,8 +58,7 @@ typedef struct block {
     char previous_hash[HASH_HEX_SIZE];
 } block;
 
-//Chain link structurevoid new_post(blockchain* in_chain, int time_of, char* in_sender, char in_data, char* in_signature) {
-
+//Link in a blockchain
 typedef struct blink {
     block data;
     struct blink* next;
@@ -93,6 +96,10 @@ typedef struct alt_chain {
 } alt_chain;
 
 
+/////////////////////////////////////////////
+// FUNCTIONS
+/////////////////////////////////////////////
+
 //Chain functions
 blockchain* new_chain();
 int discard_chain(blockchain* in_chain);
@@ -112,14 +119,10 @@ int extract_transactions_raw(transaction* trans_array, char* in_trans);
 int extract_posts_raw(post* post_array, char* input_posts_string);
 int validate_posts(blockchain* in_chain, post* new_post_array, int nr_of_posts);
 
-
-
 //Transaction functions
-//char* string_trans_nosig(char* output, char* sender, char* receiver, int amount);
 char* string_trans_nosig(char* output, int time_of, char* sender, char* reciever, int amount);
+char* string_post_nosig(char* output, int time_of, char* sender, char data);
 int strip_pub_key(char* output, char* input);
-
-
 
 //Link functions
 blink* blink_create();
@@ -135,12 +138,12 @@ bool valid_proof(char* last_hash, char* trans_hash,  long proof);
 long proof_of_work(int* beaten, char* last_hash, char* trans_hash);
 
 //Crypto functions
+void hash256(unsigned char* output, const char* input);
 int create_keys(RSA** your_keys, char** pri_key, char** pub_key);
 int destroy_keys(RSA** your_keys, char** pri_key, char** pub_key);
 int read_keys(RSA** our_keys, char* pri_filename, char* pub_filename);
 int write_keys(RSA** our_keys, char* pri_filename, char* pub_filename);
 int message_signature(char* output, char* message, RSA* keypair, char* pub_key);
-bool verify_signiture(const char* input, char* sender, char* recipient, char* amount, char* signature);
 bool verify_message(const char* input, char* sender, char* signature);
 int hash_transactions(char* output, transaction* trans_array, unsigned int trans_array_length, post* post_array, unsigned int post_array_length);
 

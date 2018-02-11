@@ -64,7 +64,6 @@ dict* out_sockets;
 int last_ping;
 
 
-
 /////////////////////////////////////////////////////
 //UTILITY FUNCTIONS
 /////////////////////////////////////////////////////
@@ -134,6 +133,16 @@ int destroy_sockets_in_dict(bt_node* current_node, void* data) {
     dict_del_elem(out_sockets,current_node->key,0);
     
     return 1;
+}
+
+//Print a given nodes value taken from a linked list of strings
+void* print_string(void* data) {
+
+    char* string = (char*)data;
+    printf("- %s\n", string);
+
+    return NULL;
+
 }
 
 
@@ -1021,7 +1030,7 @@ int client_existance_announcement(const char* input) {
 //Inbound thread function - receives messages and adds them to execution queue
 void* in_server() {
     
-    printf("Blockchain in C Major: Server v0.9 beta\n");
+    printf("noincoin: Server v1.0\n");
     printf("Node IP: %s\n", our_ip);
     printf("Other node List: %s\n", node_list_file);
     printf("Pri Key File: %s\n", pri_file);
@@ -1072,16 +1081,6 @@ void* destroy_items_in_dict(list* in_list, li_node* input , void* data) {
     dict_del_elem(for_chain_dict,to_destroy, 0);
 
     return NULL;
-}
-
-//Print a given nodes value taken from a linked list of strings
-void* print_string(void* data) {
-
-    char* string = (char*)data;
-    printf("- %s\n", string);
-
-    return NULL;
-
 }
 
 //Executes everything in execution queue + prunes data structures
@@ -1351,7 +1350,7 @@ int setup_pri_key(const char* in_pri_key) {
 }
 
 //Read public key filename from command line argument
-int setup_pub_key(char* in_pub_key) {
+int setup_pub_key(const char* in_pub_key) {
 
     if(in_pub_key == NULL) return 0;
 
@@ -1366,7 +1365,7 @@ int setup_pub_key(char* in_pub_key) {
 }
 
 //Read node list filename from command line argument
-int setup_node_list(char* in_node_list) {
+int setup_node_list(const char* in_node_list) {
 
     if(in_node_list == NULL) return 0;
 
@@ -1382,7 +1381,7 @@ int setup_node_list(char* in_node_list) {
 }
 
 //Read chain name filename from command line argument
-int setup_chain_file(char* in_chain_file) {
+int setup_chain_file(const char* in_chain_file) {
 
     if(in_chain_file == NULL) return 0;
 
@@ -1397,9 +1396,8 @@ int setup_chain_file(char* in_chain_file) {
 
 }
 
-
 //Parses and processes commandline arguments
-int command_line_parser(int argc, char* argv[]) {
+int command_line_parser(int argc, const char* argv[]) {
 
     if(argv == NULL) return 0;
 
@@ -1438,9 +1436,12 @@ int command_line_parser(int argc, char* argv[]) {
     return 1;
 }
 
+/////////////////////////////////////////////////////
+//MAIN FUNCTION
+/////////////////////////////////////////////////////
 
 //The star of the show
-int main(int argc, char* argv[]) {
+int main(int argc, const char* argv[]) {
     
     //Ctrl-C Handler
     signal(SIGINT, graceful_shutdown);

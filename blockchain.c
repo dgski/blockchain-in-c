@@ -4,10 +4,21 @@
 #include <time.h>
 
 #include <signal.h>
+#include <openssl/sha.h>
+#include <string.h>
 
 #include "blockchain.h"
-#include "hash.h"
 
+//Interface for 256 bit SHA hashing that takes a char* input
+void hash256(unsigned char* output, const char* input) {
+
+    size_t length = strlen(input);
+    unsigned char md[32];
+    SHA256((const unsigned char*)input, length, md);
+    memcpy(output,md, 32);
+
+    return;
+}
 
 //Create new Blockchain
 blockchain* new_chain() {
@@ -25,7 +36,6 @@ blockchain* new_chain() {
         in_chain->head->data.posts[i].data = '0';
     }
     in_chain->head->data.posts_list_length = 0;
-
 
 
     in_chain->last_proof_of_work = 100;
@@ -59,6 +69,7 @@ blockchain* new_chain() {
     return in_chain;
 }
 
+//Destroy the chain and free every link in it
 int discard_chain(blockchain* in_chain) {
 
     if(in_chain == NULL) return 0;
@@ -78,6 +89,7 @@ int discard_chain(blockchain* in_chain) {
     return 1;
 }
 
+//Hash the transactions and posts provided
 int hash_transactions(char* output, transaction* trans_array, unsigned int trans_array_length, post* post_array, unsigned int post_array_length) {
 
     if(output == NULL || trans_array == NULL || post_array == NULL) return 0;
@@ -130,11 +142,11 @@ int hash_transactions(char* output, transaction* trans_array, unsigned int trans
 
 }
 
-
+//Add a new a post to the given blockchain
 void new_post(blockchain* in_chain, int time_of, char* in_sender, char in_data, char* in_signature) {
 
     //Posts full
-    if(in_chain->post_index > 19)
+    if(in_chain == NULL || in_sender == NULL || in_signature == NULL || in_chain->post_index > 7)
         return;
 
 
@@ -172,32 +184,28 @@ void new_post(blockchain* in_chain, int time_of, char* in_sender, char in_data, 
 void new_transaction(blockchain* in_chain, int time_of, char* in_sender, char* in_recipient, int in_amount, char* in_signature) {
 
     //Transactions full
-    if(in_chain->trans_index > 19)
+    if(in_chain == NULL || in_sender == NULL || in_recipient == NULL || in_signature == NULL || in_chain->trans_index > 19)
         return;
 
     int index = in_chain->trans_index++;
     strcpy(in_chain->trans_list[index].sender, in_sender);
     strcpy(in_chain->trans_list[index].recipient, in_recipient);
 
-    //printf("NEW TRANSACTION FUNCTION:::::::::");
-    //printf("in_sig: %s\n", in_signature);
-
     strcpy(in_chain->trans_list[index].signature, in_signature);
-    //printf("translist sig: %s\n", in_chain->trans_list[index].signature);
 
     in_chain->trans_list[index].amount = in_amount;
     in_chain->trans_list[index].time_of = time_of;
 
     //Update quick ledger
-    //temp fix for creation transactions
     if(strcmp(in_sender, in_recipient)) {
         void* sender_funds = dict_access(in_chain->quickledger, in_sender);
         int sender_future_balance = 0;
 
         if(sender_funds != NULL) {
             sender_future_balance = *((int*)sender_funds) - in_amount; //CHANGE AF
-            sender_future_balance += 200; //CHANGE AF
-
+        }
+        else {
+            return;
         }
         dict_insert(in_chain->quickledger, in_sender, &sender_future_balance, sizeof(sender_funds));
     }
@@ -218,10 +226,10 @@ void new_transaction(blockchain* in_chain, int time_of, char* in_sender, char* i
 
 }
 
-
-
-//Create and blink_append new block
+//Create and blink_append new block to the given chain from ready parameters in chain
 blink* append_current_block(blockchain* in_chain, long in_proof) {
+
+    if(in_chain == NULL) return NULL;
 
     //Create block
     blink* the_block = blink_append(in_chain->head);
@@ -258,6 +266,7 @@ blink* append_current_block(blockchain* in_chain, long in_proof) {
     return the_block;
 }
 
+//Create and blink_append new block ot the given chain from the parameters given
 blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int in_time, transaction* trans_list,
  post* posts, unsigned int trans_list_length, unsigned int posts_list_length, long proof) {
 
@@ -297,14 +306,17 @@ blink* append_new_block(blockchain* in_chain, unsigned int index, unsigned int i
 
 }
 
-void print_block(blink* in_block, char separator)
-{
+//Print out the given block using the following seperator for decoration
+void print_block(blink* in_block, char separator) {
+    if(in_block == NULL) return;
+
     for(int i = 0; i < 77; i++)
         printf("%c", separator);
     printf("\n");
     
     printf("BLOCK # %d\n",in_block->data.index);
-    printf("TIME: %d\n",in_block->data.time);
+    time_t raw_time = in_block->data.time;
+    printf("TIME: %s",ctime(&raw_time));
     printf("POSTS: ");
     for(int i = 0; i < in_block->data.posts_list_length; i++)
         printf("%c",in_block->data.posts[i].data);
@@ -318,11 +330,6 @@ void print_block(blink* in_block, char separator)
     printf("PROOF: %ld\n",in_block->data.proof);
     printf("PREV HASH: ");
     printf("%s\n", in_block->data.previous_hash);
-    /*
-    for(int i = 0; i < 32; i++)
-        printf("%02x",in_block->data.previous_hash[i]);
-    printf("\n");
-    */
     for(int i = 0; i < 77; i++)
         printf("%c", separator);
     printf("\n\n");
@@ -330,6 +337,8 @@ void print_block(blink* in_block, char separator)
 
 //Stringifies of the current block
 char* string_block(char* output, block* in_block) {
+
+    if(in_block == NULL || output == NULL) return NULL;
 
     char block_string[BLOCK_STR_SIZE] = {0};
     char buffer[BLOCK_BUFFER_SIZE] = {0};
@@ -358,13 +367,7 @@ char* string_block(char* output, block* in_block) {
     for(int i = 0; i < in_block->trans_list_length; i++) {
 
         memset(buffer, 0, BLOCK_BUFFER_SIZE);
-
-
-        //printf("IN TRANSACTION BUFFER: %s\n", in_block->trans_list[i].signature);
         sprintf(buffer,"%d:%s:%s:%010d:%s", in_block->trans_list[i].time_of, in_block->trans_list[i].sender,in_block->trans_list[i].recipient,in_block->trans_list[i].amount, in_block->trans_list[i].signature);
-        
-        //printf("TRANSACTION BUFFER:::::::::::: %s\n", buffer);
-        
         if(i + 1 != in_block->trans_list_length) strcat(buffer,"-");
         strcat(block_string,buffer);
     }
@@ -380,51 +383,35 @@ char* string_block(char* output, block* in_block) {
 
     //Add previous hash
     strcat(block_string, in_block->previous_hash);
-
-    /*
-    for(int i = 0; i < HASH_SIZE; i++) {
-        sprintf(buffer,"%02x", in_block->previous_hash[i]);
-        strcat(block_string, buffer);
-    }*/
-
     strcpy(output, block_string);
 
     return output;
 }
 
+//Stringify the following transaction (without signature)
 char* string_trans_nosig(char* output, int time_of, char* sender, char* reciever, int amount) {
 
+    if(output == NULL || sender == NULL || reciever == NULL) return NULL;
 
     sprintf(output,"%d %s %s %010d ",time_of, sender, reciever, amount);
-
-    /*
-    strcpy(output, sender);
-    strcat(output, " ");
-    strcat(output, receiver);
-    strcat(output, " ");
-    char the_amount[20];
-    sprintf(the_amount, "%010d", amount);
-    strcat(output, the_amount);
-    */
-
     return output;
 }
 
+//Stringify the following post (without signature)
 char* string_post_nosig(char* output, int time_of, char* sender, char data) {
 
+    if(output == NULL || sender == NULL) return NULL;
 
     sprintf(output,"%d %s %c ",time_of,sender, data);
 
     return output;
 }
 
-
+//Extract the posts from the given string and place them into post array
 int extract_posts_raw(post* post_array, char* input_posts_string) {
 
     if(post_array == NULL || input_posts_string == NULL) return 0;
     if(input_posts_string[0] == '0') return 0;
-
-    printf("THE POSTS TO PROCESS: %s\n", input_posts_string);
 
     char* post_strings[BLOCK_DATA_SIZE] = {0};
     char in_posts[BLOCK_STR_SIZE] = {0};
@@ -462,7 +449,7 @@ int extract_posts_raw(post* post_array, char* input_posts_string) {
 }
 
 
-
+//Extract the transactions from the given string and place them into trans array
 int extract_transactions_raw(transaction* trans_array, char* input_trans_string) {
 
 
@@ -525,12 +512,12 @@ int extract_transactions_raw(transaction* trans_array, char* input_trans_string)
     return 1;
 }
 
+//Validate the posts in the given array
 int validate_posts(blockchain* in_chain, post* new_post_array, int nr_of_posts) {
 
     if(nr_of_posts == 0 || in_chain == NULL || new_post_array == NULL) return 1;
 
     for(int i = 0; i < nr_of_posts; i ++) {
-        printf("VERIFYING POST:\n");
         char output[1500] = {0};
         string_post_nosig(output, new_post_array[i].time_of, new_post_array[i].poster, new_post_array[i].data);
 
@@ -546,9 +533,7 @@ int validate_posts(blockchain* in_chain, post* new_post_array, int nr_of_posts) 
     
 }
 
-
-
-
+//Extract the transactions from the given string, place them into the given array and then add them to the given blockchain 
 int extract_transactions(blockchain* in_chain,transaction* trans_array, const char* in_trans) {
 
     char the_trans_chars[30000];
@@ -620,13 +605,11 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, const ch
         //Addresses are the same, Currency cap already met, and they are trying to give themselves more
         if(!strcmp(sender, reciever) && in_chain->total_currency == CURRENCY_CAP && atoi(amount) != 0) {
             return 0;
-            //return 1; //temp
         }
 
         //Addresses are the same, Trying to givethemselves more than 2
         if(!strcmp(sender, reciever) && (in_chain->total_currency < CURRENCY_CAP) && (atoi(amount) != CURRENCY_SPEED) ) {
             return 0;
-            //return 1; //temp
         }
 
         //Behold! The creation of NOINCOINS!
@@ -652,7 +635,7 @@ int extract_transactions(blockchain* in_chain,transaction* trans_array, const ch
     return 1;
 }
 
-//Hash this block
+//Hash the given block
 char* hash_block(char* output, block* in_block) {
 
     char block_string[BLOCK_STR_SIZE];
@@ -676,6 +659,7 @@ char* hash_block(char* output, block* in_block) {
     return output;
 }
 
+//Check whether the given proof is valid
 bool valid_proof(char* last_hash, char* trans_hash,  long proof) {
 
     char guess[GUESS_SIZE] = {0};
@@ -685,13 +669,14 @@ bool valid_proof(char* last_hash, char* trans_hash,  long proof) {
     unsigned char hash_value[HASH_SIZE];
     hash256(hash_value,guess);
 
-    if(0)
+    if(0) //Debug mode
         return (hash_value[0] == '0' && hash_value[1] == '0' /* && hash_value[2] == '0'  && (hash_value[3] > 60 && hash_value[3] < 127)*/);
     else
-        return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' /*&& (hash_value[3] > 60 && hash_value[3] < 127)*/);
+        return (hash_value[0] == '0' && hash_value[1] == '0' && hash_value[2] == '0' && (hash_value[3] > 60 && hash_value[3] < 127));
 
 }
 
+//Proof of work function that searches for right proof. Exits if the node is beaten, or exit signal is sent
 long proof_of_work(int* beaten, char* last_hash, char* trans_hash) {
 
     long proof = 0;
@@ -715,16 +700,10 @@ long proof_of_work(int* beaten, char* last_hash, char* trans_hash) {
             strcpy(old_trans_hash, trans_hash);
         }
     }
-    /*
-    printf("OUR PROOF: %ld\n", proof);
-    printf("CONFIRMATION: %d\n", valid_proof(last_hash, proof));
-
-    char guess[GUESS_SIZE] = {0};
-    sprintf(guess, "%s%020ld",last_hash, proof);*/
-
     return proof;
 }
 
+//Read keys from the provided file
 int read_keys(RSA** our_keys, char* pri_filename, char* pub_filename) {
 
     *our_keys = RSA_new();
@@ -749,6 +728,7 @@ int read_keys(RSA** our_keys, char* pri_filename, char* pub_filename) {
     return 1;
 }
 
+//Write keys to the provided file
 int write_keys(RSA** our_keys, char* pri_filename, char* pub_filename) {
     
 
@@ -811,6 +791,7 @@ int create_keys(RSA** your_keys, char** pri_key, char** pub_key) {
 
 }
 
+//Destroys the provided keys
 int destroy_keys(RSA** your_keys, char** pri_key, char** pub_key) {
 
     free(*pri_key);
@@ -824,7 +805,7 @@ int destroy_keys(RSA** your_keys, char** pri_key, char** pub_key) {
 
 }
 
-
+//Creates a signature with the given sender and message
 int message_signature(char* output, char* message, RSA* keypair, char* pub_key) {
 
 
@@ -857,6 +838,7 @@ int message_signature(char* output, char* message, RSA* keypair, char* pub_key) 
     return 1;
 }
 
+//Verifies whether the message is signed by the sender given the following signature
 bool verify_message(const char* input, char* sender, char* signature) {
 
     unsigned char hash_value[32];
@@ -904,82 +886,10 @@ bool verify_message(const char* input, char* sender, char* signature) {
 
     if(rc) return true; else return false;
 
-
-
     return false;
 }
 
-bool verify_signiture(const char* input, char* sender, char* recipient, char* amount, char* signature) {
-    /*
-    printf(ANSI_COLOR_RED);
-    printf("\n\n\n\n\n\n\n");
-    printf("SENDER: '%s'\n", sender);
-    printf("RECEIVER: '%s'\n", recipient);
-    printf("AMOUNT: '%s'\n", amount);
-    printf("SIGNATURE: '%s'\n", signature);
-    printf("\n\n\n\n\n\n\n");
-    printf(ANSI_COLOR_RESET);
-    */
-
-
-    char data[2000] = {0};
-
-    strcat(data, sender);
-    strcat(data, " ");
-
-    strcat(data, recipient);
-    strcat(data," ");
-
-    //char buffer[20] = {0};
-    //sprintf(buffer, "%d", amount);
-    strcat(data, amount);
-
-    unsigned char hash_value[32];
-    hash256(hash_value,data);
-
-    unsigned char sig[256];
-    char* pointer = signature;
-    //extract sig from hex asci
-    for(int i = 0; i < 256; i++) {
-        unsigned int value;
-        sscanf(pointer, "%02x", &value);
-        pointer = pointer + 2;
-        sig[i] = value;
-    }
-
-    char our_key[1000] = {0};
-    char* new_key_point = our_key;
-    char* send_pointer = sender;
-
-    for(int i = 0; i < 5; i++) {
-        memcpy(new_key_point,send_pointer,64);
-        new_key_point = new_key_point + 64;
-        send_pointer = send_pointer + 64;
-        *new_key_point++ = '\n';
-    }
-
-    memcpy(new_key_point,send_pointer,41);
-
-    char final_key[427] = {0};
-    sprintf(final_key,"-----BEGIN RSA PUBLIC KEY-----\n%s\n-----END RSA PUBLIC KEY-----\n", our_key);
-
-    char* pub_key = final_key;
-
-    BIO *bio = BIO_new_mem_buf((void*)pub_key, strlen(pub_key));
-    RSA *rsa_pub = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
-
-    int rc = RSA_verify(NID_sha256, hash_value,32,sig,256,rsa_pub);
-
-    BIO_free_all(bio);
-    RSA_free(rsa_pub);
-
-
-    //printf("VERIFY RETURN: %d\n", rc);
-    if(rc != 1) printf("Invalid.\n"); else printf("Valid.\n");
-
-    if(rc) return true; else return false;
-}
-
+//Strips the RSA public key of the newlines, header and footer
 int strip_pub_key(char* output, char* pub_key) {
     char asci_pub_key[500] = {0};
     int i = 31;
@@ -997,12 +907,9 @@ int strip_pub_key(char* output, char* pub_key) {
     return 0;
 }
 
-
-
-
-
-
+//////////////////////////////////
 //Block-link FUNCTIONS:
+/////////////////////////////////
 blink* blink_create()
 {
     blink* temp = malloc(sizeof(blink));

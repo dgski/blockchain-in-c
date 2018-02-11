@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -11,13 +10,12 @@
 #include <openssl/pem.h>
 #include <openssl/err.h>
 
-
-#include "client_queue.h"
 #include "nanomsg/include/nn.h"
 #include "nanomsg/include/pipeline.h"
 #include "data_containers/linked_list.h"
 #include "data_containers/dict.h"
 #include "blockchain.h"
+#include "client.h"
 
 //IDs
 RSA* our_keys;
@@ -30,7 +28,6 @@ pthread_t inbound_network_thread;
 pthread_t outbound_network_thread;
 pthread_mutex_t our_mutex;
 int close_threads;
-
 
 //Lists
 list* other_nodes;
@@ -45,27 +42,7 @@ dict* posted_things;
 int sock_in;
 int sock_out;
 char our_ip[300];
-
 int last_check;
-
-
-
-//Message item structure
-typedef struct client_message_item {
-    char toWhom[300];
-    char message[2000];
-    unsigned int tries;
-    int status; //0 - unsent, 1 - sent, 2 - accepted
-    char sig[513];
-    int type;
-} client_message_item;
-
-//Holds a sent object
-typedef struct p_thing {
-    int status;
-    int amount;
-    dict* confirmed_by;
-} p_thing;
 
 //Creates a sent object
 p_thing* create_p_thing() {
@@ -106,21 +83,15 @@ void display_help() {
     return;
 }
 
+//Exits the program
 void quit_program() {
     printf("Shutting down. Good bye!\n");
     exit(0);
 }
 
-//bool val_trans_format(char* sender, char* recipient, char* amount) {
-bool val_trans_format(char* recipient, char* amount) {
+// Validates the transaction format
+int val_trans_format(char* recipient, char* amount) {
 
-    /*
-    for(int i = 0; i < strlen(sender); i++) {
-        if(sender[i] == ':') {
-            printf("You cannot use ':' in sender's or reciever's names.\n");
-            return false;
-        }
-    }*/
     for(int i = 0; i < strlen(recipient); i++) {
         if(recipient[i] == ':') {
             printf("You cannot use ':' in senders or recipients names.\n");
@@ -136,6 +107,7 @@ bool val_trans_format(char* recipient, char* amount) {
     return true;
 }
 
+//Gets the signature from the given post or transaction
 int get_signature(char* output, char* input) {
 
     char our_message[5000];
@@ -187,14 +159,12 @@ void* send_to_all(list* in_list, li_node* in_item, void* data) {
     if(strlen(out_msg) > 2000)
         return NULL;
 
-   
     client_message_item announcement;
     setup_message(&announcement);
 
     //Get signature
     char output[513];
     int ret = get_signature(output,out_msg);
-    //printf("GOT SIGNATURE: %s\n", output);
 
     strcpy(announcement.toWhom, data_string);
     strcpy(announcement.message, out_msg);
@@ -214,7 +184,10 @@ void* send_to_all(list* in_list, li_node* in_item, void* data) {
     return NULL;
 }
 
+//Posts a post
 void post_post(char* input) {
+
+    if(input == NULL) return;
 
     char note[3] = {0};
 
@@ -222,19 +195,11 @@ void post_post(char* input) {
     
     char out_msg[2000] = {0};
     char seperator = ' ';
-    //strcpy(out_msg, "P ");
-    /*
-    strcat(out_msg, asci_pub_key);
-    strcat(out_msg, seperator);
-    strcat(out_msg, note);
-    */
-
     sprintf(out_msg,"P %ld%c%s%c%s%c", time(NULL),seperator, asci_pub_key, seperator, note, seperator);
 
 
     char sig[513] = {0};
     message_signature(sig,out_msg + 2,our_keys,pub_key);
-    //strcat(out_msg, seperator);
     strcat(out_msg,sig);
 
     int status = -1;
@@ -252,7 +217,7 @@ void post_post(char* input) {
 
 }
 
-
+//Posts a transaction
 void post_transaction(char* input) {
 
     char recipient[32];
@@ -268,16 +233,6 @@ void post_transaction(char* input) {
 
     char out_msg[2000] = {0};
     char seperator = ' ';
-    /*
-    strcpy(out_msg, "T ");
-
-    strcat(out_msg, asci_pub_key);
-    strcat(out_msg, seperator);
-    
-    strcat(out_msg, recipient);
-    strcat(out_msg, seperator);
-    strcat(out_msg, amount);
-    */
 
     sprintf(out_msg,"T %ld%c%s%c%s%c%010d%c", time(NULL),seperator, asci_pub_key, seperator, recipient, seperator, the_amount, seperator);
 
@@ -355,7 +310,7 @@ void* process_outbound(list* in_list, li_node* input, void* data) {
     return NULL;
 }
 
-
+//Checks on each sent transaction and post whether they have been accepted or not. Keeps asking
 int check_on_unaccepted(bt_node* current_node, void* data) {
 
     if(current_node == NULL) return 0;
@@ -392,6 +347,7 @@ void* out_server() {
     }
 }
 
+//Print out posts and transactions
 int print_posts_trans(bt_node* current_node, void* data) {
 
     int value = ( ((p_thing*)current_node->data)->status );
@@ -407,7 +363,7 @@ int print_posts_trans(bt_node* current_node, void* data) {
     return 1;
 }
 
-
+//Print the list of things that have been posted
 void print_posted_items() {
 
     printf("SENT OUT:\n");
@@ -417,6 +373,7 @@ void print_posted_items() {
     return;
 }
 
+//An incoming acceptance message coming in
 int trans_or_post_acceptance( char* input) {
 
     char thing_to_accept[513] ={0};
@@ -439,6 +396,7 @@ int trans_or_post_acceptance( char* input) {
     return 1;
 }
 
+//Process the incoming message
 void process_message(const char* in_msg) {
 
 
@@ -458,6 +416,7 @@ void process_message(const char* in_msg) {
 
 }
 
+//Incoming Server
 void* in_server() {
 
     sock_in = nn_socket (AF_SP, NN_PULL);
@@ -465,8 +424,6 @@ void* in_server() {
     assert (nn_bind (sock_in, our_ip) >= 0);
     int timeout = 500;
     assert (nn_setsockopt (sock_in, NN_SOL_SOCKET, NN_RCVTIMEO, &timeout, sizeof (timeout)) >= 0);
-
-    //printf("Inbound Socket Ready!\n");
 
     char buf[30000];
 
@@ -476,8 +433,8 @@ void* in_server() {
         pthread_mutex_lock(&our_mutex);
         if(bytes > 0) {
             buf[bytes] = 0;
-            printf("\nRecieved %d bytes: \"%s\"\n", bytes, buf);
-                process_message(buf);
+            //printf("\nRecieved %d bytes: \"%s\"\n", bytes, buf);
+            process_message(buf);
         }
 
         if(close_threads)
@@ -488,13 +445,11 @@ void* in_server() {
     return 0;
 }
 
-
-
-
+//The moon of the show
 int main(void) {
     
     //Setup
-    printf("Blockchain in C: Client v0.1 by DG\n'h' for help/commandlist\n");
+    printf("Blockchain in C: Client v1.0 by DG\n'h' for help/commandlist\n");
     char buffer[120] = {0};
 
     other_nodes = list_create();
@@ -550,7 +505,7 @@ int main(void) {
 
     //Wait for command
     while(true) {
-        printf("b-in-c>");
+        printf("noincoin>");
         fgets(buffer, 120, stdin);
         buffer[strlen(buffer) - 1] = 0;
 
