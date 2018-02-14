@@ -7,63 +7,83 @@
 //Create list
 list* list_create()
 {
-    list* our_list = malloc(sizeof(list));
-    our_list->head = NULL;
-    our_list->length = 0;
-    return our_list;
+    list* new_list = malloc(sizeof(list));
+
+    if(new_list == NULL)
+        return NULL;
+
+    new_list->head = NULL;
+    new_list->length = 0;
+    return new_list;
 }
 
 //Create node
 li_node* li_new(void* input, size_t in_size)
 {
-    li_node* temp = malloc(sizeof(li_node));
-    temp->data = malloc(in_size);
-    memcpy(temp->data,input,in_size);
 
-    temp->size = in_size;
-    temp->next = NULL;
-    temp->prev = NULL;
-    return temp;
+    if(input == NULL) return NULL;
+
+    li_node* new_node = malloc(sizeof(li_node));
+    if(new_node == NULL) return NULL;
+
+    new_node->data = malloc(in_size);
+    if(new_node->data == NULL) return NULL;
+
+
+    memcpy(new_node->data,input,in_size);
+
+    new_node->size = in_size;
+    new_node->next = NULL;
+    new_node->prev = NULL;
+    return new_node;
 }
 
 //Add item to front of list
 li_node* li_prepend(list* in_list, void* input, size_t in_size)
 {
-    li_node* temp = li_new(input,in_size);
+    if(in_list == NULL || input == NULL) return NULL;
+
+    li_node* new_node = li_new(input,in_size);
+
+    if(new_node == NULL) return NULL;
 
     if(in_list->head == NULL) 
     {
-        in_list->head = temp;
+        in_list->head = new_node;
+        in_list->length++;
     }
     else 
     {
-        temp->next = in_list->head;
-        in_list->head->prev = temp;
+        new_node->next = in_list->head;
+        in_list->head->prev = new_node;
+        in_list->head = new_node;
         in_list->length++;
     }
     
-    in_list->head = temp;
     return in_list->head;
 }
 
 //Add item to back of list
 li_node* li_append(list* in_list, void* input, size_t in_size)
-{
-    li_node* temp = li_new(input, in_size);
+{   
+    if(in_list == NULL || input == NULL) return NULL;
+
+    li_node* new_node = li_new(input, in_size);
+    if(new_node == NULL) return NULL;
 
     if(in_list->head == NULL) 
     {
-        in_list->head = temp;
+        in_list->head = new_node;
     }
     else
     {
         li_node* cursor = in_list->head;
+
         while(cursor->next != NULL)
             cursor = cursor->next;
 
-
-        cursor->next = temp;
-        temp->prev = cursor;
+        cursor->next = new_node;
+        new_node->prev = cursor;
     }
     
     in_list->length++;
@@ -81,8 +101,10 @@ li_node* li_remove_front(list* in_list)
     in_list->head = in_list->head->next;
     in_list->head->prev = NULL;
     in_list->length--;
+
     free(cursor->data);
     free(cursor);
+
     return in_list->head;
 }
 
@@ -114,30 +136,25 @@ li_node* li_remove_end(list* in_list)
 //Delete node from list and add links between previous and next nodes
 void li_delete_node(list* in_list, li_node* in_node) {
 
-    int debug = 0;
-
-    if(in_node == NULL)
+    if(in_list == NULL || in_node == NULL)
         return;
 
     else if(in_node->next == NULL && in_node->prev == NULL) {
-        debug = 1;
+        ;
     }
 
     else if(in_node->next == NULL && in_node->prev != NULL) {
         in_node->prev->next = NULL;
-        debug = 2;
     }
 
     else if(in_node->prev == NULL && in_node->next != NULL) {
         in_node->next->prev = NULL;
         in_list->head = in_node->next;
-        debug = 3;
     }
 
     else if(in_node->prev != NULL & in_node->next != NULL) {
         in_node->prev->next = in_node->next;
         in_node->next->prev = in_node->prev;
-        debug = 4;
     }
 
     free(in_node->data);
@@ -145,8 +162,6 @@ void li_delete_node(list* in_list, li_node* in_node) {
     in_node = NULL;
 
     in_list->length--;
-
-    if(in_list->length == 0) in_list->head = NULL;
 }
 
 //Print out list
@@ -161,7 +176,7 @@ void li_print(list* in_list, void* (*print_function)(void* data))
 
     while(temp != NULL)
     {
-        int a = (int)(*print_function)(temp->data);
+        (*print_function)(temp->data);
         temp = temp->next;
     }
     printf("\n");
